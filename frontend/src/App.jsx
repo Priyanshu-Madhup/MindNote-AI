@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import LandingPage from './LandingPage';
 import {
   Plus,
   ChevronDown,
@@ -277,6 +278,7 @@ const WelcomeSection = () => {
 
 // --- Main App ---
 export default function App() {
+  const [showLanding, setShowLanding] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -299,12 +301,17 @@ export default function App() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  if (showLanding) {
+    return <LandingPage onEnterApp={() => setShowLanding(false)} />;
+  }
+
   const anyPanelOpen = isMobile && (sidebarOpen || rightPanelOpen);
 
   const closeAll = () => {
     setSidebarOpen(false);
     setRightPanelOpen(false);
   };
+
 
   return (
     <div className="flex h-screen w-full bg-[#0C0C0C] text-[#E5E2E1] font-sans selection:bg-[#D4C5A9] selection:text-[#0C0C0C]">
