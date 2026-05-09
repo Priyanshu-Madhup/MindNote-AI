@@ -1,322 +1,263 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Background3D from './Background3D';
 
-// ─── Knowledge Graph ──────────────────────────────────────────────────────────
-const KnowledgeGraph = () => {
-  const svgRef = useRef(null);
-  const animFrameRef = useRef(null);
+// --- Marquee Feature Card -------------------------------------------------------
+// Purely presentational - scale is applied externally by the RAF loop in MarqueeFeatures.
+// Hover only changes border/background; transform is owned by the RAF.
+const MarqueeCard = ({ icon, title, desc, tag }) => (
+  <div
+    className="marquee-card"
+    style={{
+      minWidth: '300px',
+      maxWidth: '300px',
+      background: 'rgba(255,255,255,0.03)',
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: '16px',
+      padding: '28px 24px',
+      marginRight: '13px',
+      cursor: 'default',
+      flexShrink: 0,
+      // Only animate visual properties here - transform is driven by RAF
+      transition: 'border-color 0.3s ease, background 0.3s ease',
+      boxShadow: '0 4px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)',
+      transformOrigin: 'center center',
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.borderColor = 'rgba(201,168,76,0.4)';
+      e.currentTarget.style.background   = 'rgba(201,168,76,0.07)';
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
+      e.currentTarget.style.background   = 'rgba(255,255,255,0.03)';
+    }}
+  >
+    {/* Category tag */}
+    <span style={{
+      display: 'inline-block',
+      fontSize: '0.58rem',
+      letterSpacing: '0.13em',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      color: '#c9a84c',
+      background: 'rgba(201,168,76,0.1)',
+      border: '1px solid rgba(201,168,76,0.2)',
+      borderRadius: '4px',
+      padding: '3px 8px',
+      marginBottom: '20px',
+      fontFamily: 'Manrope, sans-serif',
+    }}>
+      {tag}
+    </span>
+
+    {/* Icon */}
+    <div style={{ marginBottom: '14px' }}>
+      <span className="material-symbols-outlined"
+        style={{ fontSize: '32px', color: '#e6c364', display: 'block' }}>
+        {icon}
+      </span>
+    </div>
+
+    {/* Title */}
+    <h3 style={{
+      fontFamily: 'Epilogue, sans-serif',
+      fontSize: '1.1rem',
+      fontWeight: 700,
+      color: '#f0ece0',
+      marginBottom: '10px',
+      lineHeight: 1.3,
+    }}>
+      {title}
+    </h3>
+
+    {/* Description */}
+    <p style={{
+      fontFamily: 'Manrope, sans-serif',
+      fontSize: '0.82rem',
+      color: '#6b6b6b',
+      lineHeight: 1.65,
+    }}>
+      {desc}
+    </p>
+  </div>
+);
+
+// --- Infinite Marquee with dynamic centre-scale ---------------------------------
+const MarqueeFeatures = ({ features }) => {
+  const [paused, setPaused] = useState(false);
+  const containerRef = useRef(null);
+  const trackRef     = useRef(null);
+  const rafRef       = useRef(null);
+  const pausedRef    = useRef(false);
+
+  const doubled = [...features, ...features];
+
+  const MIN_SCALE = 0.58;
+  const MAX_SCALE = 1.06;
+  const FADE_ZONE = 0.16;
 
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
+    pausedRef.current = paused;
+  }, [paused]);
 
-    // Expanded coordinate space — nodes can roam freely
-    const W = 500, H = 500;
+  useEffect(() => {
+    const applyScales = () => {
+      const container = containerRef.current;
+      const track     = trackRef.current;
+      if (!container || !track) { rafRef.current = requestAnimationFrame(applyScales); return; }
 
-    // Home positions pushed outward toward the edges so nodes wander far.
-    // `pinned:true` → very soft centre-spring only (not hard-pinned).
-    const nodeDefs = [
-      { id: 'center',     hx: 250, hy: 250, r: 45, label: 'YOUR NOTES', centre: true  },
-      { id: 'podcast',    hx:  80, hy:  70, r: 28, label: 'PODCAST',    centre: false },
-      { id: 'quiz',       hx: 430, hy: 130, r: 28, label: 'QUIZ',       centre: false },
-      { id: 'mindmap',    hx:  60, hy: 310, r: 28, label: 'MIND MAP',   centre: false },
-      { id: 'summary',    hx: 420, hy: 360, r: 28, label: 'SUMMARY',    centre: false },
-      { id: 'chat',       hx: 130, hy: 450, r: 28, label: 'CHAT',       centre: false },
-      { id: 'flashcards', hx: 380, hy: 460, r: 28, label: 'FLASHCARDS', centre: false },
-    ];
+      const cRect   = container.getBoundingClientRect();
+      const centerX = cRect.left + cRect.width / 2;
+      const halfW   = cRect.width / 2;
 
-    const nodes = nodeDefs.map(d => ({ ...d, x: d.hx, y: d.hy, vx: 0, vy: 0 }));
+      Array.from(track.children).forEach(card => {
+        const r      = card.getBoundingClientRect();
+        const cardCX = r.left + r.width / 2;
+        const dist   = Math.abs(cardCX - centerX);
+        const norm   = Math.min(dist / halfW, 1);
 
-    // Build SVG link elements once
-    const linkEls = [];
-    const linksContainer = svg.querySelector('#graph-links');
-    nodes.filter(n => !n.centre).forEach(n => {
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('stroke', '#c9a84c');
-      line.setAttribute('stroke-width', '1');
-      line.setAttribute('stroke-opacity', '0.6');
-      if (n.id === 'podcast' || n.id === 'flashcards') line.setAttribute('stroke-dasharray', '5 5');
-      linksContainer.appendChild(line);
-      linkEls.push({ source: nodes[0], target: n, el: line });
-    });
+        const t     = (1 - Math.cos(Math.PI * norm)) / 2;
+        const scale = MAX_SCALE - (MAX_SCALE - MIN_SCALE) * t;
 
-    // SVG coordinate transform — works correctly even when cursor is outside the element
-    const toSVG = (cx, cy) => {
-      const pt = svg.createSVGPoint();
-      pt.x = cx; pt.y = cy;
-      return pt.matrixTransform(svg.getScreenCTM().inverse());
-    };
+        const opacity = norm > (1 - FADE_ZONE)
+          ? 1 - (norm - (1 - FADE_ZONE)) / FADE_ZONE * 0.6
+          : 1;
 
-    const mouse = { x: null, y: null, inside: false };
-    let draggedNode = null;
-    let hoveredNode = null;
+        const glow      = 1 - t;
+        const borderA   = (0.06 + glow * 0.78).toFixed(3);
+        const outerBlur = Math.round(glow * 32);
+        const innerBlur = Math.round(glow * 12);
+        const outerSprd = Math.round(glow * 5);
 
-    // Sync DOM positions from state
-    const render = () => {
-      nodes.forEach(n => {
-        const el = svg.querySelector(`#gnode-${n.id}`);
-        if (!el) return;
-        const circle = el.querySelector('circle');
-        const text = el.querySelector('text');
-        circle.setAttribute('cx', n.x);
-        circle.setAttribute('cy', n.y);
-        text.setAttribute('x', n.x);
-        text.setAttribute('y', n.y + (n.centre ? 5 : 3));
-      });
-      linkEls.forEach(l => {
-        l.el.setAttribute('x1', l.source.x); l.el.setAttribute('y1', l.source.y);
-        l.el.setAttribute('x2', l.target.x); l.el.setAttribute('y2', l.target.y);
-      });
-    };
-
-    const updateCursor = () => {
-      svg.style.cursor = draggedNode ? 'grabbing' : hoveredNode ? 'grab' : 'default';
-    };
-
-    // Physics
-    const tick = () => {
-      const centre = nodes[0]; // centre node
-
-      nodes.forEach(n => {
-        if (n === draggedNode) return;
-
-        // High damping → slow, viscous, fluid feel
-        n.vx *= 0.97;
-        n.vy *= 0.97;
-
-        // Large ambient drift → nodes never stop meandering
-        n.vx += (Math.random() - 0.5) * 0.18;
-        n.vy += (Math.random() - 0.5) * 0.18;
-
-        if (n.centre) {
-          // Centre node: very soft spring so it wobbles within ~40px of home
-          n.vx += (n.hx - n.x) * 0.006;
-          n.vy += (n.hy - n.y) * 0.006;
-        } else {
-          // Outer nodes: extremely weak home spring — they drift far but eventually return
-          n.vx += (n.hx - n.x) * 0.003;
-          n.vy += (n.hy - n.y) * 0.003;
-
-          // Very gentle pull toward centre node (keeps graph connected-ish)
-          const dcx = centre.x - n.x, dcy = centre.y - n.y;
-          n.vx += dcx * 0.0008;
-          n.vy += dcy * 0.0008;
-        }
-
-        // Mouse interaction (only while cursor is inside the SVG viewport)
-        if (mouse.inside && mouse.x !== null) {
-          const dx = mouse.x - n.x;
-          const dy = mouse.y - n.y;
-          const dist = Math.hypot(dx, dy) || 0.001;
-
-          if (draggedNode) {
-            // When dragging → push nearby nodes away from the dragged node
-            const ddx = draggedNode.x - n.x;
-            const ddy = draggedNode.y - n.y;
-            const dd = Math.hypot(ddx, ddy) || 0.001;
-            if (dd < 90 && n !== draggedNode) {
-              const push = ((90 - dd) / 90) * 0.7;
-              n.vx -= (ddx / dd) * push;
-              n.vy -= (ddy / dd) * push;
-            }
-          } else {
-            // Idle hover → wide magnetic attraction toward cursor
-            if (dist < 200) {
-              const pull = ((200 - dist) / 200) * 0.018 * dist;
-              n.vx += (dx / dist) * pull;
-              n.vy += (dy / dist) * pull;
-            }
-          }
-        }
-
-        // Soft boundary — gentle reflection near edges instead of hard clamp
-        const pad = n.r + 4;
-        if (n.x < pad)      n.vx += (pad - n.x) * 0.08;
-        if (n.x > W - pad)  n.vx -= (n.x - (W - pad)) * 0.08;
-        if (n.y < pad)      n.vy += (pad - n.y) * 0.08;
-        if (n.y > H - pad)  n.vy -= (n.y - (H - pad)) * 0.08;
-
-        n.x += n.vx;
-        n.y += n.vy;
+        card.style.transform   = `scale(${scale.toFixed(4)})`;
+        card.style.opacity     = opacity.toFixed(4);
+        card.style.zIndex      = Math.round(scale * 10);
+        card.style.borderColor = `rgba(201,168,76,${borderA})`;
+        card.style.boxShadow   = glow > 0.08
+          ? `0 0 ${outerBlur}px ${outerSprd}px rgba(201,168,76,${(glow * 0.38).toFixed(3)}),
+             0 0 ${innerBlur}px rgba(201,168,76,${(glow * 0.60).toFixed(3)}),
+             inset 0 1px 0 rgba(255,255,255,0.07)`
+          : '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)';
       });
 
-      // Dragged node follows cursor smoothly (lerp)
-      if (draggedNode && mouse.x !== null) {
-        draggedNode.x += (mouse.x - draggedNode.x) * 0.35;
-        draggedNode.y += (mouse.y - draggedNode.y) * 0.35;
-      }
-
-      render();
-      animFrameRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(applyScales);
     };
 
-    // ── Events ────────────────────────────────────────────────────────────────
-    const onMouseEnter = () => { mouse.inside = true; };
-    const onMouseLeave = () => {
-      if (!draggedNode) { mouse.inside = false; mouse.x = null; mouse.y = null; hoveredNode = null; }
-      updateCursor();
-    };
-
-    const onMove = (e) => {
-      const c = toSVG(e.clientX, e.clientY);
-      mouse.x = c.x; mouse.y = c.y;
-      if (!draggedNode) hoveredNode = nodes.find(n => Math.hypot(n.x - c.x, n.y - c.y) < n.r) || null;
-      updateCursor();
-    };
-
-    const onDown = (e) => {
-      e.preventDefault();
-      const c = toSVG(e.clientX, e.clientY);
-      draggedNode = nodes.find(n => Math.hypot(n.x - c.x, n.y - c.y) < n.r + 6) || null;
-      if (draggedNode) { draggedNode.vx = 0; draggedNode.vy = 0; }
-      updateCursor();
-    };
-
-    const onUp = () => {
-      if (draggedNode) {
-        // Give released node a small fling velocity
-        draggedNode.vx *= 0.4;
-        draggedNode.vy *= 0.4;
-        draggedNode = null;
-      }
-      hoveredNode = null;
-      updateCursor();
-    };
-
-    // Touch
-    const onTouchStart = (e) => {
-      const t = e.touches[0];
-      const c = toSVG(t.clientX, t.clientY);
-      mouse.x = c.x; mouse.y = c.y; mouse.inside = true;
-      draggedNode = nodes.find(n => Math.hypot(n.x - c.x, n.y - c.y) < n.r + 14) || null;
-      if (draggedNode) { draggedNode.vx = 0; draggedNode.vy = 0; }
-    };
-    const onTouchMove = (e) => {
-      e.preventDefault();
-      const c = toSVG(e.touches[0].clientX, e.touches[0].clientY);
-      mouse.x = c.x; mouse.y = c.y;
-    };
-    const onTouchEnd = () => { draggedNode = null; mouse.inside = false; };
-
-    svg.addEventListener('mouseenter', onMouseEnter);
-    svg.addEventListener('mouseleave', onMouseLeave);
-    svg.addEventListener('mousemove', onMove);
-    svg.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    svg.addEventListener('touchstart', onTouchStart, { passive: false });
-    svg.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    svg.addEventListener('touchend',   onTouchEnd);
-
-    animFrameRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      cancelAnimationFrame(animFrameRef.current);
-      svg.removeEventListener('mouseenter', onMouseEnter);
-      svg.removeEventListener('mouseleave', onMouseLeave);
-      svg.removeEventListener('mousemove', onMove);
-      svg.removeEventListener('mousedown', onDown);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      svg.removeEventListener('touchstart', onTouchStart);
-      svg.removeEventListener('touchmove', onTouchMove);
-      svg.removeEventListener('touchend', onTouchEnd);
-      while (linksContainer.firstChild) linksContainer.removeChild(linksContainer.firstChild);
-    };
+    rafRef.current = requestAnimationFrame(applyScales);
+    return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
-  const outerNodes = [
-    { id: 'podcast',    cx:  80, cy:  70, label: 'PODCAST' },
-    { id: 'quiz',       cx: 430, cy: 130, label: 'QUIZ' },
-    { id: 'mindmap',    cx:  60, cy: 310, label: 'MIND MAP' },
-    { id: 'summary',    cx: 420, cy: 360, label: 'SUMMARY' },
-    { id: 'chat',       cx: 130, cy: 450, label: 'CHAT' },
-    { id: 'flashcards', cx: 380, cy: 460, label: 'FLASHCARDS' },
-  ];
-
   return (
-    <svg
-      ref={svgRef}
-      viewBox="0 0 500 500"
-      className="w-full h-full select-none"
-      style={{ touchAction: 'none', overflow: 'visible' }}
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        maskImage:
+          'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 12%, rgba(0,0,0,1) 88%, rgba(0,0,0,0) 100%)',
+        WebkitMaskImage:
+          'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 12%, rgba(0,0,0,1) 88%, rgba(0,0,0,0) 100%)',
+        paddingTop: '32px',
+        paddingBottom: '40px',
+      }}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
-      <g id="graph-links" />
-      <g id="graph-nodes">
-        {/* Central node — soft spring, can wander */}
-        <g id="gnode-center">
-          <circle cx="250" cy="250" r="45" fill="rgba(28,27,27,0.85)" stroke="#c9a84c" strokeWidth="1.5" />
-          <text
-            x="250" y="255" textAnchor="middle" fontSize="10" fontWeight="700"
-            fill="#e6c364" fontFamily="Manrope, sans-serif" letterSpacing="0.1em"
-            style={{ pointerEvents: 'none', userSelect: 'none' }}
-          >
-            YOUR NOTES
-          </text>
-        </g>
-        {/* Outer nodes — loose, roam freely */}
-        {outerNodes.map(n => (
-          <g key={n.id} id={`gnode-${n.id}`}>
-            <circle
-              cx={n.cx} cy={n.cy} r="28"
-              fill="rgba(28,27,27,0.9)" stroke="#333"
-              onMouseEnter={e => { e.currentTarget.setAttribute('stroke', '#c9a84c'); e.currentTarget.setAttribute('r', '30'); }}
-              onMouseLeave={e => { e.currentTarget.setAttribute('stroke', '#333'); e.currentTarget.setAttribute('r', '28'); }}
-            />
-            <text
-              x={n.cx} y={n.cy + 3} textAnchor="middle" fontSize="8" fontWeight="700"
-              fill="#e5e2e1" fontFamily="Manrope, sans-serif" letterSpacing="0.1em"
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
-              {n.label}
-            </text>
-          </g>
+      <style>{`
+        @keyframes marquee-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+      `}</style>
+
+      <div
+        ref={trackRef}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          width: 'max-content',
+          animation: 'marquee-scroll 32.3s linear infinite',
+          animationPlayState: paused ? 'paused' : 'running',
+          willChange: 'transform',
+        }}
+      >
+        {doubled.map((f, i) => (
+          <MarqueeCard key={`${f.title}-${i}`} {...f} />
         ))}
-      </g>
-    </svg>
+      </div>
+    </div>
   );
 };
 
 
-
-// ─── Feature Item ─────────────────────────────────────────────────────────────
-const FeatureItem = ({ icon, title, desc }) => (
-  <div className="border-r border-b border-[#222] p-8 hover:bg-[#1c1b1b] transition-colors group cursor-default">
-    <span className="material-symbols-outlined text-[#e6c364] mb-4 block" style={{ fontSize: '36px' }}>
-      {icon}
-    </span>
-    <h3
-      className="text-2xl font-semibold mb-2 group-hover:text-[#e6c364] transition-colors leading-tight"
-      style={{ fontFamily: 'Epilogue, sans-serif' }}
-    >
-      {title}
-    </h3>
-    <p className="text-zinc-500 text-sm leading-relaxed">{desc}</p>
-  </div>
-);
-
-
-// ─── Landing Page ─────────────────────────────────────────────────────────────
+// --- Landing Page ---------------------------------------------------------------
 export default function LandingPage({ onEnterApp }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const scrollRef = useRef(0);
 
   const features = [
-    { icon: 'podcasts',      title: 'Audio Podcast',    desc: 'Convert complex papers into digestible audio discussions.' },
-    { icon: 'movie',         title: 'Visual Podcast',   desc: 'Synchronized visuals mapped to AI-generated narration.' },
-    { icon: 'account_tree',  title: 'Mind Maps',        desc: 'Non-linear visual structures of your internal knowledge.' },
-    { icon: 'video_library', title: 'Video Summaries',  desc: 'Extract core concepts from hours of footage in minutes.' },
-    { icon: 'chat_bubble',   title: 'AI Chat',          desc: 'Question your documents with a RAG-powered interface.' },
-    { icon: 'style',         title: 'Flashcards',       desc: 'Automated Spaced Repetition for long-term retention.' },
-    { icon: 'quiz',          title: 'Quiz Mode',        desc: 'Adaptive testing that evolves with your mastery level.' },
-    { icon: 'web',           title: 'Website Analysis', desc: 'Turn entire domains into a structured knowledge base.' },
+    {
+      icon: 'hub',
+      tag: 'RETRIEVAL',
+      title: 'Dual-Pipeline RAG',
+      desc: 'Combines dense vector search with sparse keyword retrieval for unmatched document comprehension accuracy.',
+    },
+    {
+      icon: 'account_tree',
+      tag: 'VISUALIZATION',
+      title: 'Knowledge Graph',
+      desc: 'Automatically maps concepts and relationships across your documents into a living, interactive graph.',
+    },
+    {
+      icon: 'picture_as_pdf',
+      tag: 'EXTRACTION',
+      title: 'PDF Intelligence',
+      desc: 'Deep semantic parsing of PDFs — tables, figures, footnotes and all — zero manual formatting required.',
+    },
+    {
+      icon: 'manage_search',
+      tag: 'SEARCH',
+      title: 'Vector Search',
+      desc: 'Sub-second semantic search across thousands of documents using high-dimensional embedding models.',
+    },
+    {
+      icon: 'podcasts',
+      tag: 'AUDIO',
+      title: 'Audio Podcast',
+      desc: 'Transform dense research papers into engaging, conversational audio you can learn from anywhere.',
+    },
+    {
+      icon: 'chat_bubble',
+      tag: 'DIALOGUE',
+      title: 'AI Chat',
+      desc: 'Hold natural-language conversations with your entire knowledge base, grounded in your own documents.',
+    },
+    {
+      icon: 'style',
+      tag: 'RETENTION',
+      title: 'Smart Flashcards',
+      desc: 'AI-generated spaced repetition cards that adapt difficulty to your personal mastery curve.',
+    },
+    {
+      icon: 'quiz',
+      tag: 'ASSESSMENT',
+      title: 'Adaptive Quiz',
+      desc: 'Dynamic question generation that evolves with your progress, exposing gaps before exam day.',
+    },
   ];
 
 
 
   return (
-    <div className="bg-[#0a0a0a] text-[#f0ece0] selection:bg-[#e6c364] selection:text-[#0a0a0a]">
+    <>
+    {/* Fixed 3D background canvas */}
+    <Background3D scrollRef={scrollRef} />
 
-      {/* ── Top Nav ───────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 w-full z-50 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 flex justify-between items-center px-8 h-20">
+    <div className="text-[#f0ece0] selection:bg-[#e6c364] selection:text-[#0a0a0a]" style={{ position: 'relative', zIndex: 1, background: 'transparent' }}>
+
+      {/* Top Nav */}
+      <header className="sticky top-0 w-full z-50 backdrop-blur-md border-b border-zinc-800/50 flex justify-between items-center px-8 h-20" style={{ background: 'rgba(10,10,10,0.6)' }}>
         <button
           className="text-xl font-black tracking-tighter text-zinc-100 cursor-pointer"
           style={{ fontFamily: 'Epilogue, sans-serif' }}
@@ -346,7 +287,6 @@ export default function LandingPage({ onEnterApp }) {
         </nav>
 
         <div className="flex items-center gap-3">
-          {/* Login */}
           <button
             id="lp-login"
             onClick={onEnterApp}
@@ -355,7 +295,6 @@ export default function LandingPage({ onEnterApp }) {
           >
             Log In
           </button>
-          {/* Get Started */}
           <button
             id="lp-get-started-nav"
             onClick={onEnterApp}
@@ -401,9 +340,9 @@ export default function LandingPage({ onEnterApp }) {
       )}
 
       <main>
-        {/* ── Hero ────────────────────────────────────────────────────────── */}
-        <section className="min-h-screen grid grid-cols-1 md:grid-cols-12 border-b border-[#222]">
-          <div className="md:col-span-7 flex flex-col justify-center px-8 md:px-10 py-24 md:border-r border-[#222]">
+        {/* Hero */}
+        <section className="min-h-screen flex items-center" style={{ background: 'transparent' }}>
+          <div className="px-8 md:px-16 py-24 max-w-2xl">
             <div className="mb-4">
               <span
                 className="inline-block px-3 py-1 border border-[#e6c364] text-[#e6c364] text-[0.7rem] tracking-[0.1em] font-bold uppercase"
@@ -412,7 +351,6 @@ export default function LandingPage({ onEnterApp }) {
                 V2.0 NOW LIVE
               </span>
             </div>
-
             <h1
               className="text-[3.5rem] sm:text-[4rem] md:text-[4.5rem] leading-[1.1] font-bold tracking-[-0.04em] mb-8"
               style={{ fontFamily: 'Epilogue, sans-serif' }}
@@ -420,7 +358,6 @@ export default function LandingPage({ onEnterApp }) {
               Turn Any Document Into{' '}
               <span className="text-[#e6c364] italic">Knowledge</span>
             </h1>
-
             <p
               className="text-[1.125rem] leading-[1.7] text-[#cac6bb] max-w-xl mb-16"
               style={{ fontFamily: 'Manrope, sans-serif' }}
@@ -428,7 +365,6 @@ export default function LandingPage({ onEnterApp }) {
               Podcasts, flashcards, mind maps, quizzes and more — all generated by AI from your notes.
               Focus on thinking, we'll handle the synthesis.
             </p>
-
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 id="lp-hero-get-started"
@@ -440,33 +376,18 @@ export default function LandingPage({ onEnterApp }) {
               </button>
               <button
                 id="lp-how-it-works"
-                className="border border-[#222] text-[#f0ece0] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:bg-[#1c1b1b] transition-colors"
+                className="border border-[#333] text-[#f0ece0] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:bg-white/5 transition-colors backdrop-blur-sm"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
               >
                 See How It Works
               </button>
             </div>
           </div>
-
-          <div className="md:col-span-5 relative bg-[#0a0a0a] overflow-visible min-h-[480px]">
-            {/* Hairline grid */}
-            <div
-              className="absolute inset-0 opacity-[0.12] pointer-events-none"
-              style={{
-                backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)',
-                backgroundSize: '40px 40px',
-              }}
-            />
-            {/* Graph fills the entire pane */}
-            <div className="absolute inset-0">
-              <KnowledgeGraph />
-            </div>
-          </div>
         </section>
 
 
-        {/* ── Trust Bar ───────────────────────────────────────────────────── */}
-        <div className="border-b border-[#222] py-8 px-8 flex flex-col md:flex-row items-center justify-between gap-8">
+        {/* Trust Bar */}
+        <div className="border-b border-white/5 py-8 px-8 flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-sm" style={{ background: 'rgba(10,10,10,0.35)' }}>
           <span
             className="text-[0.7rem] tracking-[0.1em] font-bold uppercase text-zinc-500"
             style={{ fontFamily: 'Manrope, sans-serif' }}
@@ -480,43 +401,77 @@ export default function LandingPage({ onEnterApp }) {
           </div>
         </div>
 
-        {/* ── Features ────────────────────────────────────────────────────── */}
-        <section id="features" className="py-32">
-          <div className="px-8 mb-16">
-            <h2
-              className="text-[0.7rem] tracking-[0.1em] font-bold uppercase text-[#e6c364] mb-4"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
+        {/* Features — Infinite Marquee */}
+        <section id="features" style={{ paddingTop: '80px', paddingBottom: '80px', background: 'transparent' }}>
+          <div style={{ padding: '0 32px', marginBottom: '48px' }}>
+            <p
+              style={{
+                fontFamily: 'Manrope, sans-serif',
+                fontSize: '0.68rem',
+                letterSpacing: '0.12em',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                color: '#c9a84c',
+                marginBottom: '14px',
+              }}
             >
               MULTIMODAL INTELLIGENCE
-            </h2>
-            <div className="flex justify-between items-end border-b border-[#222] pb-4">
-              <h1
-                className="text-[3rem] font-semibold leading-[1.2] tracking-[-0.02em]"
-                style={{ fontFamily: 'Epilogue, sans-serif' }}
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-end',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                paddingBottom: '16px',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'Epilogue, sans-serif',
+                  fontSize: 'clamp(2rem, 4vw, 3rem)',
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  letterSpacing: '-0.02em',
+                  color: '#f0ece0',
+                  margin: 0,
+                }}
               >
-                The Learning Suite
-              </h1>
+                The Full Feature Suite
+              </h2>
               <span
-                className="text-zinc-500 text-[0.7rem] tracking-[0.1em] uppercase mb-1"
-                style={{ fontFamily: 'Manrope, sans-serif' }}
+                style={{
+                  fontFamily: 'Manrope, sans-serif',
+                  fontSize: '0.68rem',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: '#444',
+                  marginBottom: '4px',
+                }}
               >
                 [08 SYSTEM MODULES]
               </span>
             </div>
+
+            <p
+              style={{
+                fontFamily: 'Manrope, sans-serif',
+                fontSize: '0.72rem',
+                color: '#444',
+                marginTop: '14px',
+                letterSpacing: '0.05em',
+              }}
+            >
+              Hover to pause &nbsp;&middot;&nbsp; Scroll to explore
+            </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-t border-l border-[#222] mx-8">
-            {features.map(f => (
-              <FeatureItem key={f.title} icon={f.icon} title={f.title} desc={f.desc} />
-            ))}
-          </div>
+
+          <MarqueeFeatures features={features} />
         </section>
 
-        {/* ── How It Works + Artifact Tiles ──────────────────────────────── */}
-        <section id="studio" className="border-t border-[#222]">
-          {/* Inject icon animation keyframes */}
-
-          {/* ── How It Works header ── */}
-          <div className="px-8 pt-16 pb-4 border-b border-[#222]">
+        {/* How It Works */}
+        <section id="studio" className="border-t border-white/5" style={{ background: 'rgba(10,10,10,0.4)', backdropFilter: 'blur(8px)' }}>
+          <div className="px-8 pt-16 pb-4 border-b border-white/5">
             <p
               className="text-[0.7rem] tracking-[0.1em] font-bold uppercase text-[#e6c364] mb-3"
               style={{ fontFamily: 'Manrope, sans-serif' }}
@@ -531,35 +486,33 @@ export default function LandingPage({ onEnterApp }) {
             </h2>
           </div>
 
-          {/* ── 3 Steps ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 border-b border-[#222]">
+          <div className="grid grid-cols-1 md:grid-cols-3 border-b border-white/5">
             {[
               {
                 step: '01',
                 title: 'Upload Anything',
                 body: 'Drop a PDF, paste a URL, upload a lecture video, or type raw notes. MindNote AI accepts any format.',
-                detail: 'PDF · URL · VIDEO · TEXT · AUDIO',
+                detail: 'PDF \u00b7 URL \u00b7 VIDEO \u00b7 TEXT \u00b7 AUDIO',
               },
               {
                 step: '02',
                 title: 'AI Synthesises',
-                body: 'Our models read, chunk, embed and reason over your content — extracting structure, concepts and key insights.',
-                detail: 'EXTRACTION · EMBEDDING · REASONING',
+                body: 'Our models read, chunk, embed and reason over your content \u2014 extracting structure, concepts and key insights.',
+                detail: 'EXTRACTION \u00b7 EMBEDDING \u00b7 REASONING',
               },
               {
                 step: '03',
                 title: 'Learn Your Way',
-                body: 'Receive a full suite of study artifacts — tailored to your material — ready to consume, share or export.',
-                detail: 'PODCAST · MAP · QUIZ · CARDS · REPORT',
+                body: 'Receive a full suite of study artifacts \u2014 tailored to your material \u2014 ready to consume, share or export.',
+                detail: 'PODCAST \u00b7 MAP \u00b7 QUIZ \u00b7 CARDS \u00b7 REPORT',
               },
             ].map((s, i) => (
               <div
                 key={s.step}
                 className={`px-8 py-12 flex flex-col gap-6 ${
-                  i < 2 ? 'border-b md:border-b-0 md:border-r border-[#222]' : ''
+                  i < 2 ? 'border-b md:border-b-0 md:border-r border-white/5' : ''
                 }`}
               >
-                {/* Large editorial step number */}
                 <span
                   className="text-[5rem] font-black leading-none tracking-tighter text-[#1a1a1a] select-none"
                   style={{ fontFamily: 'Epilogue, sans-serif' }}
@@ -588,10 +541,9 @@ export default function LandingPage({ onEnterApp }) {
                   </p>
                 </div>
 
-                {/* Connector arrow — only between steps */}
                 {i < 2 && (
                   <div className="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 text-[#333] text-2xl pointer-events-none">
-                    →
+                    {'\u2192'}
                   </div>
                 )}
               </div>
@@ -600,16 +552,16 @@ export default function LandingPage({ onEnterApp }) {
         </section>
 
 
-        {/* ── CTA ─────────────────────────────────────────────────────────── */}
-        <section className="py-32 bg-[#e6c364] text-[#0a0a0a] text-center">
+        {/* CTA */}
+        <section className="py-32 text-center" style={{ background: 'rgba(201,168,76,0.08)', backdropFilter: 'blur(12px)', borderTop: '1px solid rgba(201,168,76,0.15)' }}>
           <h2
-            className="text-[4rem] sm:text-[4.5rem] font-bold leading-[1.1] tracking-[-0.04em] mb-8"
+            className="text-[4rem] sm:text-[4.5rem] font-bold leading-[1.1] tracking-[-0.04em] mb-8 text-[#f0ece0]"
             style={{ fontFamily: 'Epilogue, sans-serif' }}
           >
             Unlock Your Focus.
           </h2>
           <p
-            className="text-[1.125rem] leading-[1.7] text-[#0a0a0a]/80 mb-16 max-w-2xl mx-auto"
+            className="text-[1.125rem] leading-[1.7] text-[#cac6bb] mb-16 max-w-2xl mx-auto"
             style={{ fontFamily: 'Manrope, sans-serif' }}
           >
             Join the future of document intelligence. Stop searching through your notes and start having
@@ -618,7 +570,7 @@ export default function LandingPage({ onEnterApp }) {
           <button
             id="lp-cta-explore"
             onClick={onEnterApp}
-            className="bg-[#0a0a0a] text-[#e6c364] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-125 transition-all"
+            className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-110 transition-all"
             style={{ fontFamily: 'Manrope, sans-serif' }}
           >
             Explore MindNote AI
@@ -626,8 +578,8 @@ export default function LandingPage({ onEnterApp }) {
         </section>
       </main>
 
-      {/* ── Footer ──────────────────────────────────────────────────────────── */}
-      <footer className="bg-zinc-950 border-t border-zinc-800 w-full py-16">
+      {/* Footer */}
+      <footer className="border-t border-white/5 w-full py-16" style={{ background: 'rgba(10,10,10,0.65)', backdropFilter: 'blur(10px)' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 items-center max-w-7xl mx-auto px-8 w-full gap-6">
           <div className="text-lg font-black tracking-tighter text-zinc-100" style={{ fontFamily: 'Epilogue, sans-serif' }}>
             MINDNOTE AI
@@ -638,10 +590,11 @@ export default function LandingPage({ onEnterApp }) {
             ))}
           </div>
           <div className="text-right text-[10px] tracking-widest uppercase text-zinc-500" style={{ fontFamily: 'Epilogue, sans-serif' }}>
-            © 2024 MINDNOTE AI. ALL RIGHTS RESERVED.
+            {'\u00a9'} 2024 MINDNOTE AI. ALL RIGHTS RESERVED.
           </div>
         </div>
       </footer>
     </div>
+    </>
   );
 }
