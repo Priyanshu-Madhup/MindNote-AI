@@ -11,6 +11,11 @@ if (!PUBLISHABLE_KEY) {
 }
 
 const clerkAppearance = {
+  layout: {
+    logoImageUrl:  '/MindNote.png',
+    logoPlacement: 'outside',   // renders logo above the card, not inside it
+    logoLinkUrl:   '/',         // clicking the logo goes back to home
+  },
   variables: {
     colorPrimary:        '#c9a84c',
     colorBackground:     '#131313',
