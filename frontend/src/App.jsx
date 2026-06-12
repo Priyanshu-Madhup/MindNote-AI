@@ -117,8 +117,12 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
           <div className="flex flex-col w-full">
             {/* Brand + Close on mobile */}
             <div className="px-6 mb-6 flex items-center justify-between text-xl font-bold tracking-tighter text-neutral-100 pb-5 border-b border-[#2A2A2A]">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-sm border-2 border-[#D4C5A9]"></div>
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/MindNote.png"
+                  alt="MindNote AI logo"
+                  className="w-6 h-6 object-contain drop-shadow-sm"
+                />
                 MindNote AI
               </div>
               {isMobile && (

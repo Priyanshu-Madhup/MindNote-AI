@@ -268,10 +268,15 @@ export default function LandingPage({ onEnterApp }) {
       {/* Top Nav */}
       <header className="sticky top-0 w-full z-50 backdrop-blur-md border-b border-zinc-800/50 flex justify-between items-center px-8 h-20" style={{ background: 'rgba(10,10,10,0.6)' }}>
         <button
-          className="text-xl font-black tracking-tighter text-zinc-100 cursor-pointer"
+          className="flex items-center gap-2.5 text-xl font-black tracking-tighter text-zinc-100 cursor-pointer"
           style={{ fontFamily: 'Epilogue, sans-serif' }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
+          <img
+            src="/MindNote.png"
+            alt="MindNote AI"
+            style={{ height: '32px', width: '32px', objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(201,168,76,0.4))' }}
+          />
           MINDNOTE AI
         </button>
 
@@ -644,7 +649,12 @@ export default function LandingPage({ onEnterApp }) {
       {/* Footer */}
       <footer className="border-t border-white/5 w-full py-16" style={{ background: 'rgba(10,10,10,0.65)', backdropFilter: 'blur(10px)' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 items-center max-w-7xl mx-auto px-8 w-full gap-6">
-          <div className="text-lg font-black tracking-tighter text-zinc-100" style={{ fontFamily: 'Epilogue, sans-serif' }}>
+          <div className="flex items-center gap-2 text-lg font-black tracking-tighter text-zinc-100" style={{ fontFamily: 'Epilogue, sans-serif' }}>
+            <img
+              src="/MindNote.png"
+              alt="MindNote AI"
+              style={{ height: '22px', width: '22px', objectFit: 'contain', opacity: 0.85 }}
+            />
             MINDNOTE AI
           </div>
           <div className="flex justify-center gap-8 text-[10px] tracking-widest uppercase" style={{ fontFamily: 'Epilogue, sans-serif' }}>
