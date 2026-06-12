@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import LandingPage from './LandingPage';
 import { useUser, UserButton } from '@clerk/react';
 import {
@@ -318,12 +318,77 @@ const WelcomeSection = () => {
   );
 };
 
+const BACKEND = 'http://localhost:8000';
+
+// ── Thinking animation bubble ─────────────────────────────────────────────
+const ThinkingBubble = () => (
+  <div className="flex justify-start mb-4">
+    <div className="flex items-end gap-2 max-w-[80%]">
+      <img src="/MindNote.png" alt="AI" className="w-7 h-7 rounded-full object-contain flex-shrink-0 mb-1 opacity-90" />
+      <div className="bg-[#1C1C1C] border border-[#2A2A2A] rounded-2xl rounded-bl-sm px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#D4C5A9] animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-2 h-2 rounded-full bg-[#D4C5A9] animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-2 h-2 rounded-full bg-[#D4C5A9] animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// ── Chat bubbles ──────────────────────────────────────────────────────────
+const ChatMessage = ({ msg }) => {
+  const isUser = msg.role === 'user';
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className={`flex mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}
+    >
+      <div className={`flex items-end gap-2 max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* Avatar */}
+        {isUser ? (
+          <div className="w-7 h-7 rounded-full bg-[#D4C5A9] flex items-center justify-center flex-shrink-0 mb-1 text-[#0C0C0C] text-xs font-bold">
+            U
+          </div>
+        ) : (
+          <img src="/MindNote.png" alt="AI" className="w-7 h-7 rounded-full object-contain flex-shrink-0 mb-1 opacity-90" />
+        )}
+
+        {/* Bubble */}
+        <div
+          className={`px-4 py-3 text-[13px] sm:text-[14px] leading-relaxed whitespace-pre-wrap break-words ${
+            isUser
+              ? 'bg-[#D4C5A9] text-[#0C0C0C] rounded-2xl rounded-br-sm font-medium'
+              : 'bg-[#1C1C1C] border border-[#2A2A2A] text-[#E5E2E1] rounded-2xl rounded-bl-sm'
+          }`}
+        >
+          {msg.content}
+          {/* blinking cursor while streaming */}
+          {msg.streaming && (
+            <span className="inline-block w-[2px] h-[1em] bg-[#D4C5A9] ml-0.5 align-middle animate-pulse" />
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 // --- Main App ---
 export default function App() {
   const [showLanding, setShowLanding] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile]       = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+
+  // ── Chat state ──────────────────────────────────────────────────────────
+  const [messages, setMessages]   = useState([]);   // { role, content, streaming? }
+  const [inputText, setInputText] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [hasChat, setHasChat]     = useState(false);
+  const bottomRef                 = useRef(null);
+  const inputRef                  = useRef(null);
 
   // Detect mobile and set initial sidebar state
   useEffect(() => {
@@ -342,6 +407,92 @@ export default function App() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Auto-scroll to bottom on new content
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isThinking]);
+
+  // ── Send message ─────────────────────────────────────────────────────────
+  const sendMessage = useCallback(async () => {
+    const text = inputText.trim();
+    if (!text || isThinking) return;
+
+    const userMsg = { role: 'user', content: text };
+    const history = [...messages, userMsg];
+    setMessages(history);
+    setInputText('');
+    setHasChat(true);
+    setIsThinking(true);
+
+    // Placeholder assistant bubble (will be filled by stream)
+    const assistantIdx = history.length;
+    setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }]);
+
+    try {
+      const res = await fetch(`${BACKEND}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: history.map(({ role, content }) => ({ role, content })),
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      setIsThinking(false);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE lines: "data: {...}\n\n"
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.replace(/^data:\s*/, '');
+          if (!trimmed || trimmed === '[DONE]') continue;
+          try {
+            const { token, error } = JSON.parse(trimmed);
+            if (error) throw new Error(error);
+            if (token) {
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[assistantIdx] = {
+                  ...updated[assistantIdx],
+                  content: updated[assistantIdx].content + token,
+                };
+                return updated;
+              });
+            }
+          } catch { /* ignore malformed lines */ }
+        }
+      }
+    } catch (err) {
+      setIsThinking(false);
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[assistantIdx] = {
+          role: 'assistant',
+          content: `⚠️ Error: ${err.message}. Make sure the backend is running on ${BACKEND}.`,
+          streaming: false,
+        };
+        return updated;
+      });
+    } finally {
+      // Remove streaming cursor once done
+      setMessages(prev =>
+        prev.map((m, i) => i === assistantIdx ? { ...m, streaming: false } : m)
+      );
+      inputRef.current?.focus();
+    }
+  }, [inputText, messages, isThinking]);
 
   if (showLanding) {
     return <LandingPage onEnterApp={() => setShowLanding(false)} />;
@@ -433,9 +584,19 @@ export default function App() {
           </div>
         </header>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto pt-6 sm:pt-8 px-4 sm:px-8 pb-[100px] sm:pb-[120px]">
-          <WelcomeSection />
+        {/* Scrollable Content — welcome screen OR chat history */}
+        <div className="flex-1 overflow-y-auto pt-4 sm:pt-6 px-4 sm:px-8 pb-[100px] sm:pb-[120px]">
+          {!hasChat ? (
+            <WelcomeSection />
+          ) : (
+            <div className="max-w-3xl mx-auto">
+              {messages.map((msg, i) => (
+                <ChatMessage key={i} msg={msg} />
+              ))}
+              {isThinking && <ThinkingBubble />}
+              <div ref={bottomRef} />
+            </div>
+          )}
         </div>
 
         {/* Chat Input Bar */}
@@ -443,11 +604,20 @@ export default function App() {
           <div className="relative flex items-center w-full">
             <Paperclip className="text-[#6B6B6B] mr-2 sm:mr-3 flex-shrink-0" size={18} />
             <input
-              className="w-full bg-transparent border-none p-0 text-[#E5E2E1] placeholder:text-[#6B6B6B] focus:ring-0 text-[13px] sm:text-[14px] font-normal outline-none"
-              placeholder="Ask anything across your notebooks..."
+              ref={inputRef}
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+              disabled={isThinking}
+              className="w-full bg-transparent border-none p-0 text-[#E5E2E1] placeholder:text-[#6B6B6B] focus:ring-0 text-[13px] sm:text-[14px] font-normal outline-none disabled:opacity-50"
+              placeholder={isThinking ? 'MindNote is thinking…' : 'Ask anything across your notebooks...'}
               type="text"
             />
-            <button className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] bg-[#D4C5A9] rounded-full flex items-center justify-center hover:bg-[#E2D4B9] transition-colors ml-2 sm:ml-3 flex-shrink-0">
+            <button
+              onClick={sendMessage}
+              disabled={isThinking || !inputText.trim()}
+              className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] bg-[#D4C5A9] rounded-full flex items-center justify-center hover:bg-[#E2D4B9] transition-colors ml-2 sm:ml-3 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               <ArrowUp className="text-[#0C0C0C]" size={16} />
             </button>
           </div>
