@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ClerkProvider } from '@clerk/react';
+import { ui } from '@clerk/ui';
 import App from './App';
 import './index.css';
 
@@ -204,7 +205,7 @@ const clerkAppearance = {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/" appearance={clerkAppearance}>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/" appearance={clerkAppearance} ui={ui}>
       <App />
     </ClerkProvider>
   </StrictMode>,

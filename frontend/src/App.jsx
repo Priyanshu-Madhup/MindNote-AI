@@ -320,20 +320,37 @@ const WelcomeSection = () => {
 
 const BACKEND = 'http://localhost:8000';
 
-// ── Thinking animation bubble ─────────────────────────────────────────────
-const ThinkingBubble = () => (
-  <div className="flex justify-start mb-4">
-    <div className="flex items-end gap-2 max-w-[80%]">
-      <img src="/MindNote.png" alt="AI" className="w-7 h-7 rounded-full object-contain flex-shrink-0 mb-1 opacity-90" />
-      <div className="bg-[#1C1C1C] border border-[#2A2A2A] rounded-2xl rounded-bl-sm px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[#D4C5A9] animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="w-2 h-2 rounded-full bg-[#D4C5A9] animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="w-2 h-2 rounded-full bg-[#D4C5A9] animate-bounce" style={{ animationDelay: '300ms' }} />
-        </div>
-      </div>
-    </div>
-  </div>
+// ── Thinking indicator — bare animated text, no bubble ───────────────────
+const ThinkingIndicator = () => (
+  <motion.div
+    initial={{ opacity: 0, y: 6 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: 6 }}
+    transition={{ duration: 0.2 }}
+    className="flex items-center gap-2 mb-5 pl-1"
+  >
+    <span
+      className="text-[13px] font-medium tracking-widest uppercase"
+      style={{
+        background: 'linear-gradient(90deg, #D4C5A9 0%, #f0e6cc 40%, #D4C5A9 80%)',
+        backgroundSize: '200% auto',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        animation: 'shimmer 1.6s linear infinite',
+      }}
+    >
+      Thinking
+    </span>
+    <span className="flex gap-[3px]">
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          className="w-[3px] h-[3px] rounded-full bg-[#D4C5A9]"
+          style={{ animation: `bounce 1s ease-in-out ${i * 0.18}s infinite` }}
+        />
+      ))}
+    </span>
+  </motion.div>
 );
 
 // ── Chat bubbles ──────────────────────────────────────────────────────────
@@ -341,22 +358,16 @@ const ChatMessage = ({ msg }) => {
   const isUser = msg.role === 'user';
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className={`flex mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}
+      transition={{ duration: 0.22 }}
+      className={`flex mb-3 ${isUser ? 'justify-end' : 'justify-start'}`}
     >
-      <div className={`flex items-end gap-2 max-w-[80%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-        {/* Avatar */}
-        {isUser ? (
-          <div className="w-7 h-7 rounded-full bg-[#D4C5A9] flex items-center justify-center flex-shrink-0 mb-1 text-[#0C0C0C] text-xs font-bold">
-            U
-          </div>
-        ) : (
-          <img src="/MindNote.png" alt="AI" className="w-7 h-7 rounded-full object-contain flex-shrink-0 mb-1 opacity-90" />
+      {/* No avatars — AI keeps its logo only */}
+      <div className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`} style={{ maxWidth: '75%' }}>
+        {!isUser && (
+          <img src="/MindNote.png" alt="AI" className="w-6 h-6 rounded-full object-contain flex-shrink-0 mb-1 opacity-80" />
         )}
-
-        {/* Bubble */}
         <div
           className={`px-4 py-3 text-[13px] sm:text-[14px] leading-relaxed whitespace-pre-wrap break-words ${
             isUser
@@ -365,7 +376,6 @@ const ChatMessage = ({ msg }) => {
           }`}
         >
           {msg.content}
-          {/* blinking cursor while streaming */}
           {msg.streaming && (
             <span className="inline-block w-[2px] h-[1em] bg-[#D4C5A9] ml-0.5 align-middle animate-pulse" />
           )}
@@ -383,12 +393,17 @@ export default function App() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
   // ── Chat state ──────────────────────────────────────────────────────────
-  const [messages, setMessages]   = useState([]);   // { role, content, streaming? }
+  const [messages, setMessages]   = useState([]);
   const [inputText, setInputText] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [hasChat, setHasChat]     = useState(false);
   const bottomRef                 = useRef(null);
   const inputRef                  = useRef(null);
+  // Typewriter queue — chars drip out at CHAR_DELAY ms each
+  const charQueue                 = useRef([]);
+  const isTyping                  = useRef(false);
+  const typingTarget              = useRef(null); // index into messages
+  const CHAR_DELAY                = 18; // ~15% slower than raw SSE
 
   // Detect mobile and set initial sidebar state
   useEffect(() => {
@@ -440,18 +455,39 @@ export default function App() {
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      setIsThinking(false);
-
+      // Don't hide thinking yet — keep it until first char arrives
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let firstChar = true;
+
+      // ── Typewriter drip engine ──────────────────────────────────────────
+      const drip = (idx) => {
+        if (charQueue.current.length === 0) {
+          isTyping.current = false;
+          return;
+        }
+        const char = charQueue.current.shift();
+        // Hide thinking indicator on very first character
+        if (firstChar) {
+          firstChar = false;
+          setIsThinking(false);
+        }
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], content: updated[idx].content + char };
+          return updated;
+        });
+        setTimeout(() => drip(idx), CHAR_DELAY);
+      };
+
+      typingTarget.current = assistantIdx;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // SSE lines: "data: {...}\n\n"
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
@@ -462,14 +498,12 @@ export default function App() {
             const { token, error } = JSON.parse(trimmed);
             if (error) throw new Error(error);
             if (token) {
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[assistantIdx] = {
-                  ...updated[assistantIdx],
-                  content: updated[assistantIdx].content + token,
-                };
-                return updated;
-              });
+              // push each character individually into the queue
+              for (const ch of token) charQueue.current.push(ch);
+              if (!isTyping.current) {
+                isTyping.current = true;
+                drip(assistantIdx);
+              }
             }
           } catch { /* ignore malformed lines */ }
         }
@@ -585,15 +619,19 @@ export default function App() {
         </header>
 
         {/* Scrollable Content — welcome screen OR chat history */}
-        <div className="flex-1 overflow-y-auto pt-4 sm:pt-6 px-4 sm:px-8 pb-[100px] sm:pb-[120px]">
+        <div className="flex-1 overflow-y-auto pt-4 sm:pt-6 px-2 sm:px-4 pb-[100px] sm:pb-[120px]">
           {!hasChat ? (
             <WelcomeSection />
           ) : (
-            <div className="max-w-3xl mx-auto">
-              {messages.map((msg, i) => (
-                <ChatMessage key={i} msg={msg} />
-              ))}
-              {isThinking && <ThinkingBubble />}
+            <div className="w-full max-w-none px-2">
+              {messages.map((msg, i) => {
+                // Don't render empty assistant placeholder — avoids the blank bubble flicker
+                if (msg.role === 'assistant' && msg.streaming && msg.content === '') return null;
+                return <ChatMessage key={i} msg={msg} />;
+              })}
+              <AnimatePresence>
+                {isThinking && <ThinkingIndicator key="thinking" />}
+              </AnimatePresence>
               <div ref={bottomRef} />
             </div>
           )}

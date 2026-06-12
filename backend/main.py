@@ -27,7 +27,7 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
 )
 
-MODEL = "qwen/qwen3-32b"   # fast, capable Groq model
+MODEL = "openai/gpt-oss-20b"   # fast, capable Groq model
 
 SYSTEM_PROMPT = (
     "You are MindNote AI, an intelligent study and knowledge assistant. "
@@ -40,7 +40,15 @@ app = FastAPI(title="MindNote AI Chat API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
