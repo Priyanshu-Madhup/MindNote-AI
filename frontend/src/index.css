@@ -56,29 +56,21 @@
   border-right: 1px solid #1e1e1e !important;
 }
 
-/* "Account" heading — covers all possible Clerk class name variants */
+/* "Account" heading — parent class only (no child tag selectors) */
 .cl-navbarSectionHeader,
-.cl-navbarSectionTitle,
-.cl-navbarSectionHeader h2,
-.cl-navbarSectionHeader h3,
-.cl-navbarSectionHeader p,
-.cl-navbarSectionHeader span,
-.cl-navbarSectionTitle h2,
-.cl-navbarSectionTitle h3,
-.cl-navbarSectionTitle span,
-.cl-navbar h1,
-.cl-navbar h2,
-.cl-navbar h3,
-.cl-navbar h4 {
+.cl-navbarSectionTitle {
   color: #f0ece0 !important;
 }
 
-/* "Manage your account info." subtitle — covers all variants */
+/* Catch-all: any text inside the navbar sidebar */
+.cl-navbar * {
+  color: #f0ece0;
+}
+
+/* "Manage your account info." subtitle */
 .cl-navbarSectionDescription,
 .cl-navbarSectionSubtitle,
 .cl-navbarSection > p,
-.cl-navbarSectionHeader > p,
-.cl-navbarSectionTitle > p,
 .cl-navbarSectionContent > p,
 .cl-navbar p {
   color: #888888 !important;

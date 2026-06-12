@@ -561,7 +561,7 @@ export default function App() {
 
 
   return (
-    <div className="flex h-screen w-full bg-[#0C0C0C] text-[#E5E2E1] font-sans selection:bg-[#D4C5A9] selection:text-[#0C0C0C]">
+    <div className="flex h-[100dvh] w-full bg-[#0C0C0C] text-[#E5E2E1] font-sans selection:bg-[#D4C5A9] selection:text-[#0C0C0C]">
 
       {/* Mobile backdrop — tap to close any open panel */}
       <AnimatePresence>
@@ -592,7 +592,7 @@ export default function App() {
           marginRight: !isMobile && rightPanelOpen ? '320px' : '0px',
         }}
         transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-        className="flex-1 flex flex-col min-w-0 h-screen relative bg-[#0C0C0C]"
+        className="flex-1 flex flex-col min-w-0 h-[100dvh] relative bg-[#0C0C0C]"
       >
         {/* Top App Bar */}
         <header className="sticky top-0 left-0 w-full flex justify-between items-center h-14 sm:h-16 px-3 sm:px-6 border-b border-[#2A2A2A] bg-[#0C0C0C] z-20">
@@ -657,7 +657,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Chat Input Bar */}
+        {/* Chat Input Bar — absolute so it always sits at the bottom of the dvh container */}
         <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 right-3 sm:right-4 bg-[#1C1C1C] border border-[#2A2A2A] rounded-2xl flex flex-col z-20 h-[52px] sm:h-[56px] justify-center px-3 sm:px-4">
           <div className="relative flex items-center w-full">
             <Paperclip className="text-[#6B6B6B] mr-2 sm:mr-3 flex-shrink-0" size={18} />

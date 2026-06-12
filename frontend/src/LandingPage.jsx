@@ -266,16 +266,16 @@ export default function LandingPage({ onEnterApp }) {
     <div className="text-[#f0ece0] selection:bg-[#e6c364] selection:text-[#0a0a0a]" style={{ position: 'relative', zIndex: 1, background: 'transparent' }}>
 
       {/* Top Nav */}
-      <header className="sticky top-0 w-full z-50 backdrop-blur-md border-b border-zinc-800/50 flex justify-between items-center px-8 h-20" style={{ background: 'rgba(10,10,10,0.6)' }}>
+      <header className="sticky top-0 w-full z-50 backdrop-blur-md border-b border-zinc-800/50 flex justify-between items-center px-5 sm:px-8 h-16 sm:h-20" style={{ background: 'rgba(10,10,10,0.6)' }}>
         <button
-          className="flex items-center gap-2.5 text-xl font-black tracking-tighter text-zinc-100 cursor-pointer"
+          className="flex items-center gap-2 text-base sm:text-xl font-black tracking-tighter text-zinc-100 cursor-pointer"
           style={{ fontFamily: 'Epilogue, sans-serif' }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           <img
             src="/MindNote.png"
             alt="MindNote AI"
-            style={{ height: '32px', width: '32px', objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(201,168,76,0.4))' }}
+            style={{ height: '28px', width: '28px', objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(201,168,76,0.4))' }}
           />
           MINDNOTE AI
         </button>
@@ -300,14 +300,14 @@ export default function LandingPage({ onEnterApp }) {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {isSignedIn ? (
             <>
               <UserButton afterSignOutUrl="/" />
               <button
                 id="lp-go-to-app"
                 onClick={onEnterApp}
-                className="bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
+                className="hidden sm:block bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
                 style={{ fontFamily: 'Epilogue, sans-serif' }}
               >
                 Go to App
@@ -318,7 +318,7 @@ export default function LandingPage({ onEnterApp }) {
               <SignInButton mode="modal">
                 <button
                   id="lp-login"
-                  className="border border-zinc-700 text-zinc-300 uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:border-zinc-400 hover:text-zinc-100 transition-all"
+                  className="hidden sm:block border border-zinc-700 text-zinc-300 uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:border-zinc-400 hover:text-zinc-100 transition-all"
                   style={{ fontFamily: 'Epilogue, sans-serif' }}
                 >
                   Log In
@@ -327,7 +327,7 @@ export default function LandingPage({ onEnterApp }) {
               <SignUpButton mode="modal">
                 <button
                   id="lp-get-started-nav"
-                  className="bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
+                  className="hidden sm:block bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
                   style={{ fontFamily: 'Epilogue, sans-serif' }}
                 >
                   Get Started
@@ -336,7 +336,7 @@ export default function LandingPage({ onEnterApp }) {
             </>
           )}
           <button
-            className="md:hidden text-zinc-400 hover:text-zinc-100 transition-colors"
+            className="md:hidden text-zinc-400 hover:text-zinc-100 transition-colors p-1"
             onClick={() => setMobileMenuOpen(o => !o)}
             aria-label="Toggle menu"
           >
@@ -347,7 +347,7 @@ export default function LandingPage({ onEnterApp }) {
 
       {/* Mobile nav */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed top-20 left-0 right-0 z-40 bg-zinc-950/95 border-b border-zinc-800 flex flex-col py-4 px-8 gap-1">
+        <div className="md:hidden fixed top-16 sm:top-20 left-0 right-0 z-40 bg-zinc-950/98 border-b border-zinc-800 flex flex-col py-4 px-6 gap-1">
           {[
             { label: 'Features', id: 'features' },
             { label: 'Studio',   id: 'studio'   },
@@ -355,7 +355,7 @@ export default function LandingPage({ onEnterApp }) {
             <button
               key={label}
               onClick={() => { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); setMobileMenuOpen(false); }}
-              className="uppercase tracking-widest text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors py-3 text-left"
+              className="uppercase tracking-widest text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors py-3 text-left border-b border-zinc-800/60 last:border-0"
               style={{ fontFamily: 'Epilogue, sans-serif' }}
             >
               {label}
@@ -364,21 +364,32 @@ export default function LandingPage({ onEnterApp }) {
           {isSignedIn ? (
             <button
               onClick={() => { onEnterApp(); setMobileMenuOpen(false); }}
-              className="uppercase tracking-widest text-xs font-semibold text-[#c9a84c] hover:text-[#e6c364] transition-colors py-3 text-left"
+              className="uppercase tracking-widest text-xs font-semibold text-[#c9a84c] hover:text-[#e6c364] transition-colors py-3 text-left border-b border-zinc-800/60"
               style={{ fontFamily: 'Epilogue, sans-serif' }}
             >
               Go to App
             </button>
           ) : (
-            <SignInButton mode="modal">
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                className="uppercase tracking-widest text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors py-3 text-left"
-                style={{ fontFamily: 'Epilogue, sans-serif' }}
-              >
-                Log In
-              </button>
-            </SignInButton>
+            <>
+              <SignInButton mode="modal">
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="uppercase tracking-widest text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors py-3 text-left border-b border-zinc-800/60 w-full"
+                  style={{ fontFamily: 'Epilogue, sans-serif' }}
+                >
+                  Log In
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="uppercase tracking-widest text-xs font-semibold text-[#c9a84c] hover:text-[#e6c364] transition-colors py-3 text-left w-full"
+                  style={{ fontFamily: 'Epilogue, sans-serif' }}
+                >
+                  Get Started Free
+                </button>
+              </SignUpButton>
+            </>
           )}
         </div>
       )}
@@ -386,35 +397,35 @@ export default function LandingPage({ onEnterApp }) {
       <main>
         {/* Hero */}
         <section className="min-h-screen flex items-center" style={{ background: 'transparent' }}>
-          <div className="px-8 md:px-16 py-24 max-w-2xl">
+          <div className="px-5 sm:px-8 md:px-16 py-20 sm:py-24 max-w-2xl">
             <div className="mb-4">
               <span
-                className="inline-block px-3 py-1 border border-[#e6c364] text-[#e6c364] text-[0.7rem] tracking-[0.1em] font-bold uppercase"
+                className="inline-block px-3 py-1 border border-[#e6c364] text-[#e6c364] text-[0.65rem] sm:text-[0.7rem] tracking-[0.1em] font-bold uppercase"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
               >
                 V2.0 NOW LIVE
               </span>
             </div>
             <h1
-              className="text-[3.5rem] sm:text-[4rem] md:text-[4.5rem] leading-[1.1] font-bold tracking-[-0.04em] mb-8"
+              className="text-[2.4rem] xs:text-[2.8rem] sm:text-[3.5rem] md:text-[4.5rem] leading-[1.1] font-bold tracking-[-0.03em] sm:tracking-[-0.04em] mb-6 sm:mb-8"
               style={{ fontFamily: 'Epilogue, sans-serif' }}
             >
               Turn Any Document Into{' '}
               <span className="text-[#e6c364] italic">Knowledge</span>
             </h1>
             <p
-              className="text-[1.125rem] leading-[1.7] text-[#cac6bb] max-w-xl mb-16"
+              className="text-[0.95rem] sm:text-[1.125rem] leading-[1.7] text-[#cac6bb] max-w-xl mb-10 sm:mb-16"
               style={{ fontFamily: 'Manrope, sans-serif' }}
             >
               Podcasts, flashcards, mind maps, quizzes and more — all generated by AI from your notes.
               Focus on thinking, we'll handle the synthesis.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               {isSignedIn ? (
                 <button
                   id="lp-hero-get-started"
                   onClick={onEnterApp}
-                  className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:brightness-110 transition-all"
+                  className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-8 sm:px-10 py-4 sm:py-5 hover:brightness-110 transition-all w-full sm:w-auto"
                   style={{ fontFamily: 'Manrope, sans-serif' }}
                 >
                   Go to App
@@ -423,7 +434,7 @@ export default function LandingPage({ onEnterApp }) {
                 <SignUpButton mode="modal">
                   <button
                     id="lp-hero-get-started"
-                    className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:brightness-110 transition-all"
+                    className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-8 sm:px-10 py-4 sm:py-5 hover:brightness-110 transition-all w-full sm:w-auto"
                     style={{ fontFamily: 'Manrope, sans-serif' }}
                   >
                     Get Started Free
@@ -432,7 +443,8 @@ export default function LandingPage({ onEnterApp }) {
               )}
               <button
                 id="lp-how-it-works"
-                className="border border-[#333] text-[#f0ece0] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:bg-white/5 transition-colors backdrop-blur-sm"
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="border border-[#333] text-[#f0ece0] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-8 sm:px-10 py-4 sm:py-5 hover:bg-white/5 transition-colors backdrop-blur-sm w-full sm:w-auto"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
               >
                 See How It Works
@@ -443,16 +455,16 @@ export default function LandingPage({ onEnterApp }) {
 
 
         {/* Trust Bar */}
-        <div className="border-b border-white/5 py-8 px-8 flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-sm" style={{ background: 'rgba(10,10,10,0.35)' }}>
+        <div className="border-b border-white/5 py-8 px-5 sm:px-8 flex flex-col md:flex-row items-center justify-between gap-5 sm:gap-8 backdrop-blur-sm" style={{ background: 'rgba(10,10,10,0.35)' }}>
           <span
-            className="text-[0.7rem] tracking-[0.1em] font-bold uppercase text-zinc-500"
+            className="text-[0.65rem] sm:text-[0.7rem] tracking-[0.1em] font-bold uppercase text-zinc-500 text-center md:text-left"
             style={{ fontFamily: 'Manrope, sans-serif' }}
           >
             TRUSTED BY 50,000+ STUDENTS AT GLOBAL INSTITUTIONS
           </span>
-          <div className="flex flex-wrap justify-center gap-16 opacity-40 grayscale">
+          <div className="flex flex-wrap justify-center gap-8 sm:gap-16 opacity-40 grayscale">
             {['STANFORD', 'HARVARD', 'MIT', 'OXFORD'].map(u => (
-              <span key={u} className="font-black text-xl" style={{ fontFamily: 'Epilogue, sans-serif' }}>{u}</span>
+              <span key={u} className="font-black text-lg sm:text-xl" style={{ fontFamily: 'Epilogue, sans-serif' }}>{u}</span>
             ))}
           </div>
         </div>
@@ -609,15 +621,15 @@ export default function LandingPage({ onEnterApp }) {
 
 
         {/* CTA */}
-        <section className="py-32 text-center" style={{ background: 'rgba(201,168,76,0.08)', backdropFilter: 'blur(12px)', borderTop: '1px solid rgba(201,168,76,0.15)' }}>
+        <section className="py-20 sm:py-32 px-5 sm:px-8 text-center" style={{ background: 'rgba(201,168,76,0.08)', backdropFilter: 'blur(12px)', borderTop: '1px solid rgba(201,168,76,0.15)' }}>
           <h2
-            className="text-[4rem] sm:text-[4.5rem] font-bold leading-[1.1] tracking-[-0.04em] mb-8 text-[#f0ece0]"
+            className="text-[2.5rem] sm:text-[4rem] md:text-[4.5rem] font-bold leading-[1.1] tracking-[-0.03em] sm:tracking-[-0.04em] mb-6 sm:mb-8 text-[#f0ece0]"
             style={{ fontFamily: 'Epilogue, sans-serif' }}
           >
             Unlock Your Focus.
           </h2>
           <p
-            className="text-[1.125rem] leading-[1.7] text-[#cac6bb] mb-16 max-w-2xl mx-auto"
+            className="text-[0.95rem] sm:text-[1.125rem] leading-[1.7] text-[#cac6bb] mb-10 sm:mb-16 max-w-2xl mx-auto"
             style={{ fontFamily: 'Manrope, sans-serif' }}
           >
             Join the future of document intelligence. Stop searching through your notes and start having
@@ -627,7 +639,7 @@ export default function LandingPage({ onEnterApp }) {
             <button
               id="lp-cta-explore"
               onClick={onEnterApp}
-              className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-110 transition-all"
+              className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 sm:px-20 py-5 sm:py-6 hover:brightness-110 transition-all w-full sm:w-auto max-w-xs sm:max-w-none mx-auto block sm:inline-block"
               style={{ fontFamily: 'Manrope, sans-serif' }}
             >
               Explore MindNote AI
@@ -636,7 +648,7 @@ export default function LandingPage({ onEnterApp }) {
             <SignUpButton mode="modal">
               <button
                 id="lp-cta-explore"
-                className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-110 transition-all"
+                className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 sm:px-20 py-5 sm:py-6 hover:brightness-110 transition-all w-full sm:w-auto max-w-xs sm:max-w-none mx-auto block sm:inline-block"
                 style={{ fontFamily: 'Manrope, sans-serif' }}
               >
                 Explore MindNote AI
@@ -647,8 +659,8 @@ export default function LandingPage({ onEnterApp }) {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 w-full py-16" style={{ background: 'rgba(10,10,10,0.65)', backdropFilter: 'blur(10px)' }}>
-        <div className="grid grid-cols-1 md:grid-cols-3 items-center max-w-7xl mx-auto px-8 w-full gap-6">
+      <footer className="border-t border-white/5 w-full py-10 sm:py-16" style={{ background: 'rgba(10,10,10,0.65)', backdropFilter: 'blur(10px)' }}>
+        <div className="flex flex-col md:grid md:grid-cols-3 items-center max-w-7xl mx-auto px-5 sm:px-8 w-full gap-5 sm:gap-6">
           <div className="flex items-center gap-2 text-lg font-black tracking-tighter text-zinc-100" style={{ fontFamily: 'Epilogue, sans-serif' }}>
             <img
               src="/MindNote.png"
@@ -657,12 +669,12 @@ export default function LandingPage({ onEnterApp }) {
             />
             MINDNOTE AI
           </div>
-          <div className="flex justify-center gap-8 text-[10px] tracking-widest uppercase" style={{ fontFamily: 'Epilogue, sans-serif' }}>
+          <div className="flex justify-center gap-6 sm:gap-8 text-[10px] tracking-widest uppercase" style={{ fontFamily: 'Epilogue, sans-serif' }}>
             {['Privacy', 'Terms', 'Github', 'Contact'].map(l => (
               <a key={l} href="#" className="text-zinc-500 hover:text-[#e6c364] transition-colors">{l}</a>
             ))}
           </div>
-          <div className="text-right text-[10px] tracking-widest uppercase text-zinc-500" style={{ fontFamily: 'Epilogue, sans-serif' }}>
+          <div className="text-center md:text-right text-[10px] tracking-widest uppercase text-zinc-500" style={{ fontFamily: 'Epilogue, sans-serif' }}>
             {'\u00a9'} 2024 MINDNOTE AI. ALL RIGHTS RESERVED.
           </div>
         </div>
