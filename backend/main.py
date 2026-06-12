@@ -47,10 +47,8 @@ app.add_middleware(
         "http://localhost:5175",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
-        # Production — Vercel (add your final URL here after first deploy)
-        "https://mindnote-ai.vercel.app",
-        "https://mind-note-ai.vercel.app",
-        "https://mindnoteai.vercel.app",
+        # Production — Vercel
+        "https://mindote-ai.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
