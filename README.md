@@ -1,113 +1,144 @@
-# MindNote AI
+# 🧠 MindNote AI
 
-> An AI-powered notebook platform for research, learning, and knowledge synthesis.
+> **Turn any document into knowledge.** MindNote AI is an intelligent study assistant that helps you understand documents, generate insights, and interact with your notes through AI-powered chat.
 
-MindNote AI is a modern React web application that lets you organize your knowledge into notebooks and generate rich AI-powered outputs — audio podcasts, mind maps, flashcards, quizzes, slide decks, and more — directly from your documents and web sources.
+![MindNote AI](frontend/public/MindNote.png)
 
 ---
 
 ## ✨ Features
 
-- **Notebooks** — Organize documents, PDFs, and web sources into focused workbooks
-- **AI Chat** — Ask questions across all your notebooks in a unified chat interface
-- **Audio Podcasts** — Generate natural, narrated audio overviews from your documents
-- **Mind Maps** — Visualize concepts and relationships interactively
-- **Flashcards & Quiz Mode** — AI-generated study aids from any source
-- **Slide Decks** — Auto-generate presentation-ready slides
-- **Website Analysis** — Import and chat with any web content
-- **Studio Panel** — A dedicated workspace for all generated outputs
+- 🤖 **AI Chat** — Real-time streaming chat powered by Groq (LLaMA 3.3 70B)
+- 🎨 **Premium Dark UI** — Gold-accent glassmorphism design with smooth animations
+- 🔐 **Authentication** — Full Clerk auth with Google, Microsoft, Notion sign-in
+- 📒 **Notebook Sidebar** — Organize your study materials
+- 🎙️ **Studio Panel** — Audio Overview, Slide Deck, Mind Map, Flashcards, Quiz, Report
+- ⚡ **Typewriter Effect** — Character-by-character response rendering
+- 📱 **Responsive** — Full mobile support with collapsible panels
 
 ---
 
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | [React 19](https://react.dev/) |
-| Build Tool | [Vite 8](https://vite.dev/) |
-| Styling | [Tailwind CSS v4](https://tailwindcss.com/) |
-| Animations | [Motion (Framer Motion)](https://motion.dev/) |
-| Icons | [Lucide React](https://lucide.dev/) |
-| Linting | [ESLint 10](https://eslint.org/) |
+|---|---|
+| **Frontend** | React 18, Vite, TailwindCSS |
+| **Animations** | Framer Motion (`motion/react`) |
+| **3D Background** | Three.js |
+| **Auth** | Clerk (`@clerk/react`, `@clerk/ui`) |
+| **Backend** | FastAPI (Python) |
+| **AI / LLM** | Groq API (OpenAI-compatible), LLaMA 3.3 70B |
+| **Streaming** | Server-Sent Events (SSE) |
+| **Icons** | Lucide React, Material Symbols |
+| **Fonts** | Epilogue, Manrope (Google Fonts) |
+| **Deployment** | Vercel (frontend) + Render (backend) |
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
+- Node.js 18+
+- Python 3.12+
+- [Groq API key](https://console.groq.com/keys) (free)
+- [Clerk account](https://clerk.com) (free)
 
-- [Node.js](https://nodejs.org/) **v18+**
-- [npm](https://www.npmjs.com/) **v9+**
-
-### Installation
+### 1. Clone
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/mindnote-ai.git
-cd mindnote-ai/mindnote_ai
+git clone https://github.com/Priyanshu-Madhup/MindNote-AI.git
+cd MindNote-AI
+```
 
+### 2. Backend
+
+```bash
+cd backend
+# Create .env file
+echo "GROQ_API_KEY=your_groq_key_here" > .env
+# Install dependencies
+pip install -r requirements.txt
+# Run
+python main.py
+# → http://localhost:8000
+```
+
+### 3. Frontend
+
+```bash
+cd frontend
+# Create env file
+echo "VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxx" > .env.local
+echo "VITE_BACKEND_URL=http://localhost:8000" >> .env.local
 # Install dependencies
 npm install
-```
-
-### Development
-
-```bash
+# Run
 npm run dev
+# → http://localhost:5173
 ```
 
-The app will be available at **http://localhost:5173** with hot module replacement enabled.
+---
 
-### Build for Production
+## 🌐 Deployment
 
-```bash
-npm run build
-```
+### Backend — Render
 
-Output is generated in the `dist/` directory.
+| Setting | Value |
+|---|---|
+| Root Directory | `backend` |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
+| Env Var | `GROQ_API_KEY=your_key` |
 
-### Preview Production Build
+### Frontend — Vercel
 
-```bash
-npm run preview
-```
+| Setting | Value |
+|---|---|
+| Root Directory | `frontend` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Env Vars | `VITE_CLERK_PUBLISHABLE_KEY`, `VITE_BACKEND_URL` |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-mindnote_ai/
-├── public/              # Static assets
-├── src/
-│   ├── assets/          # Images and media
-│   ├── App.jsx          # Root component (Sidebar, Main, RightPanel)
-│   ├── App.css          # Component-level styles
-│   ├── index.css        # Global styles & Tailwind directives
-│   └── main.jsx         # React entry point
-├── index.html           # HTML shell
-├── vite.config.js       # Vite configuration
-├── eslint.config.js     # ESLint configuration
-└── package.json
+MindNote-AI/
+├── backend/
+│   ├── main.py           # FastAPI app, Groq SSE streaming
+│   ├── requirements.txt  # Python dependencies
+│   └── .env              # GROQ_API_KEY (gitignored)
+└── frontend/
+    ├── public/
+    │   └── MindNote.png  # App logo / favicon
+    ├── src/
+    │   ├── main.jsx       # React entry, ClerkProvider setup
+    │   ├── App.jsx        # Main app, chat logic, layout
+    │   ├── LandingPage.jsx# Marketing landing page
+    │   ├── Background3D.jsx# Three.js animated background
+    │   └── index.css      # Global styles + Clerk overrides
+    ├── index.html
+    └── .env.local         # Frontend env vars (gitignored)
 ```
 
 ---
 
-## 🎨 Design System
+## 🔑 Environment Variables
 
-MindNote AI uses a warm neutral dark palette:
+### `frontend/.env.local`
+```env
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxx
+VITE_BACKEND_URL=http://localhost:8000
+```
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| Background | `#0C0C0C` | App shell |
-| Surface | `#141414` / `#1C1C1C` | Cards, panels |
-| Border | `#2A2A2A` | Dividers |
-| Accent | `#D4C5A9` | Primary actions, highlights |
-| Text Primary | `#E5E2E1` | Body copy |
-| Text Muted | `#6B6B6B` | Labels, captions |
+### `backend/.env`
+```env
+GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+```
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **Apache-2.0 License** — see the source files for details.
+Apache-2.0 © 2024 Priyanshu Madhup
