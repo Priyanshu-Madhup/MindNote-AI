@@ -27,3 +27,180 @@
     @apply bg-[#0C0C0C] text-[#E5E2E1] font-sans antialiased;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Clerk – Global dark theme overrides
+   Targets Clerk's rendered DOM classes (cl- prefix) directly.
+   Using !important so these always win over Clerk's own styles.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Shared card / modal backgrounds ── */
+.cl-card,
+.cl-userProfile-root,
+.cl-profilePage,
+.cl-pageScrollBox,
+.cl-scrollBox {
+  background: #131313 !important;
+  color: #f0ece0 !important;
+}
+
+/* ── Left sidebar (navbar) ── */
+.cl-navbar {
+  background: #0d0d0d !important;
+  border-right: 1px solid #1e1e1e !important;
+}
+
+/* "Account" heading — covers all possible Clerk class name variants */
+.cl-navbarSectionHeader,
+.cl-navbarSectionTitle,
+.cl-navbarSectionHeader h2,
+.cl-navbarSectionHeader h3,
+.cl-navbarSectionHeader p,
+.cl-navbarSectionHeader span,
+.cl-navbarSectionTitle h2,
+.cl-navbarSectionTitle h3,
+.cl-navbarSectionTitle span,
+.cl-navbar h1,
+.cl-navbar h2,
+.cl-navbar h3,
+.cl-navbar h4 {
+  color: #f0ece0 !important;
+}
+
+/* "Manage your account info." subtitle — covers all variants */
+.cl-navbarSectionDescription,
+.cl-navbarSectionSubtitle,
+.cl-navbarSection > p,
+.cl-navbarSectionHeader > p,
+.cl-navbarSectionTitle > p,
+.cl-navbarSectionContent > p,
+.cl-navbar p {
+  color: #888888 !important;
+}
+
+/* Profile / Security nav buttons */
+.cl-navbarButton {
+  color: #a0a0a0 !important;
+}
+.cl-navbarButton:hover {
+  color: #f0ece0 !important;
+  background: #1a1a1a !important;
+}
+.cl-navbarButton.cl-active,
+.cl-navbarButton[data-active],
+.cl-navbarButton[aria-current] {
+  color: #f0ece0 !important;
+  background: #1e1e1e !important;
+}
+.cl-navbarButtonIcon {
+  color: inherit !important;
+}
+
+/* ── Page header ("Profile details") ── */
+.cl-pageHeaderTitle,
+.cl-headerTitle {
+  color: #f0ece0 !important;
+}
+.cl-pageHeaderSubtitle,
+.cl-headerSubtitle {
+  color: #a0a0a0 !important;
+}
+
+/* ── Profile section labels ("Profile", "Email addresses", "Connected accounts") ── */
+.cl-profileSectionTitle,
+.cl-profileSectionTitleText {
+  color: #f0ece0 !important;
+}
+
+/* ── Profile section content rows ── */
+.cl-profileSectionContent,
+.cl-profileSectionItem,
+.cl-profileSectionItemList,
+.cl-profileSectionItemPreview {
+  color: #d0ccc6 !important;
+}
+
+/* ── User name + email text in preview rows ── */
+.cl-userPreviewMainIdentifier {
+  color: #f0ece0 !important;
+  font-weight: 600 !important;
+}
+.cl-userPreviewSecondaryIdentifier {
+  color: #888888 !important;
+}
+
+/* ── Email address text / connected account rows ── */
+.cl-identifierText,
+.cl-userEmail,
+.cl-providerName {
+  color: #d0ccc6 !important;
+}
+
+/* ── "Primary" badge ── */
+.cl-badge {
+  background: #222222 !important;
+  border: 1px solid #3a3a3a !important;
+  color: #b0b0b0 !important;
+}
+
+/* ── "..." three-dot menu button ── */
+.cl-menuButton {
+  color: #888888 !important;
+}
+.cl-menuButton:hover {
+  color: #f0ece0 !important;
+  background: #1e1e1e !important;
+}
+
+/* ── Dropdown from "..." ── */
+.cl-menuList {
+  background: #1a1a1a !important;
+  border: 1px solid #333333 !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+}
+.cl-menuItem {
+  color: #d0ccc6 !important;
+}
+.cl-menuItem:hover {
+  background: #222222 !important;
+}
+
+/* ── "Add email address" / "Connect account" action links ── */
+.cl-profileSectionPrimaryButton,
+.cl-actionCard,
+.cl-actionCardContent {
+  color: #c9a84c !important;
+}
+
+/* ── "Update profile" button ── */
+.cl-formButtonReset {
+  color: #c9a84c !important;
+}
+
+/* ── "Secured by Clerk" + "Development mode" footer ── */
+.cl-userButtonPopoverFooter,
+.cl-userButtonPopoverFooter *,
+.cl-footer,
+.cl-footer * {
+  color: #555555 !important;
+  background: #0f0f0f !important;
+  border-top-color: #1e1e1e !important;
+}
+
+/* keep "Development mode" text its amber colour */
+.cl-developmentMode,
+[data-development-mode="true"] {
+  color: #c9a84c !important;
+  background: transparent !important;
+}
+
+/* ── Form inputs inside UserProfile ── */
+.cl-formFieldInput {
+  background: #1e1e1e !important;
+  border-color: #3a3a3a !important;
+  color: #f0ece0 !important;
+}
+.cl-formFieldLabel {
+  color: #c0c0c0 !important;
+}

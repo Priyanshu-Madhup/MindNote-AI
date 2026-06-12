@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import LandingPage from './LandingPage';
+import { useUser, UserButton } from '@clerk/react';
 import {
   Plus,
   ChevronDown,
@@ -43,6 +44,55 @@ const getGreeting = () => {
 const NotebookIcon = ({ filled = false, className = '' }) => (
   <BookOpen className={`${className} ${filled ? 'fill-current' : ''}`} size={14} />
 );
+
+// --- Sidebar Profile (real Clerk user) ---
+const SidebarProfile = () => {
+  const { user, isLoaded } = useUser();
+
+  if (!isLoaded) {
+    // Skeleton while Clerk initialises
+    return (
+      <div className="px-6 w-full mt-auto pt-6 border-t border-[#2A2A2A]">
+        <div className="flex items-center gap-3 py-2">
+          <div className="w-8 h-8 rounded-full bg-[#1C1C1C] animate-pulse flex-shrink-0" />
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="h-2.5 w-24 bg-[#1C1C1C] rounded animate-pulse" />
+            <div className="h-2 w-32 bg-[#1C1C1C] rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const displayName = user?.fullName || user?.firstName || 'User';
+  const email       = user?.primaryEmailAddress?.emailAddress ?? '';
+
+  return (
+    <div className="px-4 w-full mt-auto pt-4 border-t border-[#2A2A2A]">
+      <div className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-[#141414] transition-all group cursor-pointer">
+        {/* Clerk UserButton — avatar + account/sign-out menu on click */}
+        <UserButton
+          afterSignOutUrl="/"
+          appearance={{
+            elements: {
+              avatarBox: 'w-8 h-8 ring-1 ring-[#2A2A2A] group-hover:ring-[#D4C5A9] transition-all',
+            },
+          }}
+        />
+        <div className="flex flex-col min-w-0">
+          <span className="text-[#E5E2E1] text-[13px] leading-none font-medium truncate">
+            {displayName}
+          </span>
+          {email && (
+            <span className="text-[#6B6B6B] text-[11px] mt-1 truncate" title={email}>
+              {email}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // --- Sidebar ---
 const Sidebar = ({ isOpen, onClose, isMobile }) => {
@@ -124,19 +174,7 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
           </div>
 
           {/* Footer Profile */}
-          <div className="px-6 w-full mt-auto pt-6">
-            <a className="flex items-center gap-3 text-neutral-500 hover:text-neutral-300 hover:bg-[#141414] py-2 px-2 -mx-2 rounded-lg transition-all" href="#">
-              <img
-                alt="User profile"
-                className="w-8 h-8 rounded-full border border-[#2A2A2A] object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQUerqLbS1uQTcKCYpciMI3t0I_lwOZtFGvoZHyBti7IXf2SjJEQctdTI6Yq4JwyDQQmML3FBLfHW71LThPSj2ZJzNQtlYhqqVliOiO8_JSvECbnlZQWut11IMmozFwhF1aTmSxS8yB55OvPhuzpgz_uVWXjv3ikDswNQ0oiFYDfUJ_VpbCqYM7NMfBtJZFLeRUFBqPK8l6fcjEHGCT6RFukRUf974-ou3x43nbl6MfMQ1JPD6h44P2vXb1TyTxhqS4ISUFUS2bp0"
-              />
-              <div className="flex flex-col">
-                <span className="text-[#E5E2E1] text-[12px] leading-none">Jane Doe</span>
-                <span className="text-[#CEC5B9] text-[10px] uppercase tracking-wider mt-1 border border-[#2A2A2A] px-1 rounded-sm w-fit font-medium">Pro</span>
-              </div>
-            </a>
-          </div>
+          <SidebarProfile />
         </motion.aside>
       )}
     </AnimatePresence>

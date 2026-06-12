@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Background3D from './Background3D';
+import { SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/react';
 
 // --- Marquee Feature Card -------------------------------------------------------
 // Purely presentational - scale is applied externally by the RAF loop in MarqueeFeatures.
@@ -193,8 +194,16 @@ const MarqueeFeatures = ({ features }) => {
 
 // --- Landing Page ---------------------------------------------------------------
 export default function LandingPage({ onEnterApp }) {
+  const { isSignedIn } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const scrollRef = useRef(0);
+
+  // Auto-redirect to app once Clerk confirms the user is signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      onEnterApp();
+    }
+  }, [isSignedIn]);
 
   const features = [
     {
@@ -287,22 +296,40 @@ export default function LandingPage({ onEnterApp }) {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
-            id="lp-login"
-            onClick={onEnterApp}
-            className="border border-zinc-700 text-zinc-300 uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:border-zinc-400 hover:text-zinc-100 transition-all"
-            style={{ fontFamily: 'Epilogue, sans-serif' }}
-          >
-            Log In
-          </button>
-          <button
-            id="lp-get-started-nav"
-            onClick={onEnterApp}
-            className="bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
-            style={{ fontFamily: 'Epilogue, sans-serif' }}
-          >
-            Get Started
-          </button>
+          {isSignedIn ? (
+            <>
+              <UserButton afterSignOutUrl="/" />
+              <button
+                id="lp-go-to-app"
+                onClick={onEnterApp}
+                className="bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
+                style={{ fontFamily: 'Epilogue, sans-serif' }}
+              >
+                Go to App
+              </button>
+            </>
+          ) : (
+            <>
+              <SignInButton mode="modal">
+                <button
+                  id="lp-login"
+                  className="border border-zinc-700 text-zinc-300 uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:border-zinc-400 hover:text-zinc-100 transition-all"
+                  style={{ fontFamily: 'Epilogue, sans-serif' }}
+                >
+                  Log In
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button
+                  id="lp-get-started-nav"
+                  className="bg-[#c9a84c] text-[#503d00] uppercase tracking-widest text-xs font-semibold px-5 py-2.5 hover:brightness-110 active:opacity-80 transition-all"
+                  style={{ fontFamily: 'Epilogue, sans-serif' }}
+                >
+                  Get Started
+                </button>
+              </SignUpButton>
+            </>
+          )}
           <button
             className="md:hidden text-zinc-400 hover:text-zinc-100 transition-colors"
             onClick={() => setMobileMenuOpen(o => !o)}
@@ -329,13 +356,25 @@ export default function LandingPage({ onEnterApp }) {
               {label}
             </button>
           ))}
-          <button
-            onClick={() => { onEnterApp(); setMobileMenuOpen(false); }}
-            className="uppercase tracking-widest text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors py-3 text-left"
-            style={{ fontFamily: 'Epilogue, sans-serif' }}
-          >
-            Log In
-          </button>
+          {isSignedIn ? (
+            <button
+              onClick={() => { onEnterApp(); setMobileMenuOpen(false); }}
+              className="uppercase tracking-widest text-xs font-semibold text-[#c9a84c] hover:text-[#e6c364] transition-colors py-3 text-left"
+              style={{ fontFamily: 'Epilogue, sans-serif' }}
+            >
+              Go to App
+            </button>
+          ) : (
+            <SignInButton mode="modal">
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="uppercase tracking-widest text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors py-3 text-left"
+                style={{ fontFamily: 'Epilogue, sans-serif' }}
+              >
+                Log In
+              </button>
+            </SignInButton>
+          )}
         </div>
       )}
 
@@ -366,14 +405,26 @@ export default function LandingPage({ onEnterApp }) {
               Focus on thinking, we'll handle the synthesis.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                id="lp-hero-get-started"
-                onClick={onEnterApp}
-                className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:brightness-110 transition-all"
-                style={{ fontFamily: 'Manrope, sans-serif' }}
-              >
-                Get Started Free
-              </button>
+              {isSignedIn ? (
+                <button
+                  id="lp-hero-get-started"
+                  onClick={onEnterApp}
+                  className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:brightness-110 transition-all"
+                  style={{ fontFamily: 'Manrope, sans-serif' }}
+                >
+                  Go to App
+                </button>
+              ) : (
+                <SignUpButton mode="modal">
+                  <button
+                    id="lp-hero-get-started"
+                    className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:brightness-110 transition-all"
+                    style={{ fontFamily: 'Manrope, sans-serif' }}
+                  >
+                    Get Started Free
+                  </button>
+                </SignUpButton>
+              )}
               <button
                 id="lp-how-it-works"
                 className="border border-[#333] text-[#f0ece0] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-10 py-5 hover:bg-white/5 transition-colors backdrop-blur-sm"
@@ -567,14 +618,26 @@ export default function LandingPage({ onEnterApp }) {
             Join the future of document intelligence. Stop searching through your notes and start having
             conversations with them.
           </p>
-          <button
-            id="lp-cta-explore"
-            onClick={onEnterApp}
-            className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-110 transition-all"
-            style={{ fontFamily: 'Manrope, sans-serif' }}
-          >
-            Explore MindNote AI
-          </button>
+          {isSignedIn ? (
+            <button
+              id="lp-cta-explore"
+              onClick={onEnterApp}
+              className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-110 transition-all"
+              style={{ fontFamily: 'Manrope, sans-serif' }}
+            >
+              Explore MindNote AI
+            </button>
+          ) : (
+            <SignUpButton mode="modal">
+              <button
+                id="lp-cta-explore"
+                className="bg-[#e6c364] text-[#0a0a0a] uppercase tracking-[0.1em] text-[0.75rem] font-bold px-24 py-6 hover:brightness-110 transition-all"
+                style={{ fontFamily: 'Manrope, sans-serif' }}
+              >
+                Explore MindNote AI
+              </button>
+            </SignUpButton>
+          )}
         </section>
       </main>
 
