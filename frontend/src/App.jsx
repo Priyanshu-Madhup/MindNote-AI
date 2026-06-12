@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import LandingPage from './LandingPage';
-import { useUser, UserButton } from '@clerk/react';
+import { useUser, UserButton, useAuth } from '@clerk/react';
 import {
   Plus,
   ChevronDown,
@@ -318,7 +318,7 @@ const WelcomeSection = () => {
   );
 };
 
-const BACKEND = 'http://localhost:8000';
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 // ── Thinking indicator — bare animated text, no bubble ───────────────────
 const ThinkingIndicator = () => (
@@ -387,7 +387,18 @@ const ChatMessage = ({ msg }) => {
 
 // --- Main App ---
 export default function App() {
-  const [showLanding, setShowLanding] = useState(true);
+  const { isLoaded, isSignedIn } = useAuth();
+
+  // showLanding is only true when Clerk confirms user is NOT signed in
+  // This prevents the 1-second flash on refresh for signed-in users
+  const [showLanding, setShowLanding] = useState(false);
+
+  useEffect(() => {
+    if (isLoaded) {
+      setShowLanding(!isSignedIn);
+    }
+  }, [isLoaded, isSignedIn]);
+
   const [isMobile, setIsMobile]       = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
@@ -527,6 +538,15 @@ export default function App() {
       inputRef.current?.focus();
     }
   }, [inputText, messages, isThinking]);
+
+  // While Clerk is initialising — show nothing (avoids flash)
+  if (!isLoaded) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#0C0C0C]">
+        <img src="/MindNote.png" alt="Loading" className="w-10 h-10 object-contain opacity-60 animate-pulse" />
+      </div>
+    );
+  }
 
   if (showLanding) {
     return <LandingPage onEnterApp={() => setShowLanding(false)} />;
