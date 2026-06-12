@@ -86,3 +86,15 @@ desktop.ini
 *.local
 .vercel
 .netlify
+
+# ========================
+# Internal Docs (not for repo)
+# ========================
+detailed_readme.md
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
