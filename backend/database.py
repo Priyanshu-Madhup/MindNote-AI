@@ -1,72 +1,110 @@
 """
 database.py — MindNote AI
 ==========================
-Async SQLAlchemy engine + session factory for Neon PostgreSQL.
+Pure asyncpg connection pool for Neon PostgreSQL.
 
-Uses asyncpg driver for full async I/O.
-Connection pooling is configured for Neon's serverless environment
-(keep pool small — Neon suspends idle connections).
+Bypasses SQLAlchemy async (which requires greenlet — incompatible with Python 3.14)
+and uses asyncpg directly. This is actually simpler, faster, and works perfectly
+with Neon's serverless architecture.
 """
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.orm import DeclarativeBase
+import asyncpg
 from config import DATABASE_URL
 
-# ── Engine ────────────────────────────────────────────────────────────────────
-# pool_pre_ping=True → automatically reconnects stale connections (important
-# for Neon which suspends after inactivity)
-engine = create_async_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,        # max persistent connections
-    max_overflow=10,    # additional connections allowed under load
-    echo=False,         # set True to log all SQL (useful for debugging)
-)
+# ── Global connection pool ─────────────────────────────────────────────────────
+_pool: asyncpg.Pool | None = None
 
-# ── Session Factory ───────────────────────────────────────────────────────────
-# expire_on_commit=False prevents SQLAlchemy from expiring objects after
-# commit, which would cause errors when accessing attributes post-commit
-# in async context.
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=True,
-    autocommit=False,
-)
+# Convert SQLAlchemy-style URL to standard PostgreSQL URL for asyncpg
+# asyncpg uses: postgresql://... (NOT postgresql+asyncpg://)
+def _get_asyncpg_url(url: str) -> str:
+    """Strip the +asyncpg driver suffix that SQLAlchemy requires but asyncpg doesn't."""
+    return url.replace("postgresql+asyncpg://", "postgresql://")
 
-# ── Base class for all ORM models ─────────────────────────────────────────────
-class Base(DeclarativeBase):
-    pass
+
+async def get_pool() -> asyncpg.Pool:
+    """Returns the global connection pool, creating it if needed."""
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(
+            dsn=_get_asyncpg_url(DATABASE_URL),
+            min_size=1,
+            max_size=5,
+            command_timeout=30,
+        )
+    return _pool
+
+
+async def close_pool():
+    """Closes the connection pool on shutdown."""
+    global _pool
+    if _pool:
+        await _pool.close()
+        _pool = None
+
 
 # ── FastAPI Dependency ────────────────────────────────────────────────────────
-async def get_db() -> AsyncSession:
+async def get_db():
     """
-    Yields an async database session.
-    Session is automatically closed after the request completes.
-    Usage in route: db: AsyncSession = Depends(get_db)
+    Yields an asyncpg connection from the pool.
+    Usage in route: conn = Depends(get_db)
     """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        yield conn
+
 
 # ── Table Creation ────────────────────────────────────────────────────────────
+CREATE_CONVERSATIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS conversations (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title       VARCHAR(255) NOT NULL DEFAULT 'New Chat',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+CREATE_MESSAGES_TABLE = """
+CREATE TABLE IF NOT EXISTS messages (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id     UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role                VARCHAR(20) NOT NULL,
+    content             TEXT NOT NULL,
+    timestamp           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+CREATE_INDEX_CONV_ID = """
+CREATE INDEX IF NOT EXISTS ix_messages_conversation_id
+ON messages(conversation_id);
+"""
+
+CREATE_INDEX_TIMESTAMP = """
+CREATE INDEX IF NOT EXISTS ix_messages_timestamp
+ON messages(timestamp);
+"""
+
+CREATE_INDEX_CONV_TIME = """
+CREATE INDEX IF NOT EXISTS ix_messages_conv_time
+ON messages(conversation_id, timestamp);
+"""
+
+CREATE_INDEX_CONV_UPDATED = """
+CREATE INDEX IF NOT EXISTS ix_conversations_updated_at
+ON conversations(updated_at DESC);
+"""
+
+
 async def create_all_tables():
     """
     Creates all database tables if they don't already exist.
     Called once at application startup.
-    For production schema migrations, use Alembic instead.
     """
-    async with engine.begin() as conn:
-        # Import models so SQLAlchemy discovers them before creating tables
-        from models import Conversation, Message  # noqa: F401
-        await conn.run_sync(Base.metadata.create_all)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(CREATE_CONVERSATIONS_TABLE)
+            await conn.execute(CREATE_MESSAGES_TABLE)
+            await conn.execute(CREATE_INDEX_CONV_ID)
+            await conn.execute(CREATE_INDEX_TIMESTAMP)
+            await conn.execute(CREATE_INDEX_CONV_TIME)
+            await conn.execute(CREATE_INDEX_CONV_UPDATED)

@@ -8,6 +8,4 @@ openai
 python-dotenv
 
 # ── Database (added v2 — Chat History) ───────────────────────────────────────
-sqlalchemy[asyncio]    # async ORM with asyncpg support
-asyncpg                # async PostgreSQL driver (required by SQLAlchemy async)
-alembic                # database migration tool
+asyncpg                # async PostgreSQL driver — used directly (no SQLAlchemy needed)

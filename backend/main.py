@@ -23,8 +23,8 @@ import json
 # ── Config (env vars) ─────────────────────────────────────────────────────────
 from config import GROQ_API_KEY, APP_TITLE, APP_VERSION
 
-# ── Database (startup table creation) ────────────────────────────────────────
-from database import create_all_tables
+# ── Database (startup/shutdown) ───────────────────────────────────────────────
+from database import create_all_tables, close_pool
 
 # ── Chat History routes ───────────────────────────────────────────────────────
 from routes import router as history_router
@@ -35,9 +35,11 @@ from routes import router as history_router
 async def lifespan(app: FastAPI):
     # Startup: create DB tables if they don't exist
     await create_all_tables()
-    print("✅ Database tables ready")
+    print("[OK] Database tables ready")
     yield
-    # Shutdown: nothing to clean up (connections managed by engine)
+    # Shutdown: close connection pool
+    await close_pool()
+    print("[OK] Database pool closed")
 
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────

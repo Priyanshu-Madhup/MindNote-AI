@@ -1,7 +1,7 @@
 """
 routes.py — MindNote AI
 ========================
-All Chat History API routes, mounted as a router in main.py.
+All Chat History API routes using pure asyncpg.
 
 Endpoints:
   POST   /conversation          Create a new conversation
@@ -14,11 +14,12 @@ Endpoints:
 
 from uuid import UUID
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 import crud
 from database import get_db
+from models import Conversation, Message
 from schemas import (
     ConversationCreate,
     ConversationOut,
@@ -32,6 +33,25 @@ from schemas import (
 router = APIRouter(tags=["Chat History"])
 
 
+# ── Helper: convert dataclass → Pydantic schema ───────────────────────────────
+def _conv_out(c: Conversation) -> ConversationOut:
+    return ConversationOut(
+        id=c.id,
+        title=c.title,
+        created_at=c.created_at,
+        updated_at=c.updated_at,
+    )
+
+def _msg_out(m: Message) -> MessageOut:
+    return MessageOut(
+        id=m.id,
+        conversation_id=m.conversation_id,
+        role=m.role,
+        content=m.content,
+        timestamp=m.timestamp,
+    )
+
+
 # ── POST /conversation ────────────────────────────────────────────────────────
 @router.post(
     "/conversation",
@@ -41,21 +61,13 @@ router = APIRouter(tags=["Chat History"])
 )
 async def create_conversation(
     body: ConversationCreate,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    """
-    Creates a new conversation with an optional initial title.
-    Title is 'New Chat' by default — it gets auto-updated when the
-    first message is saved via POST /message.
-    """
     try:
-        conv = await crud.create_conversation(db, title=body.title or "New Chat")
-        return conv
+        conv = await crud.create_conversation(conn, title=body.title or "New Chat")
+        return _conv_out(conv)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create conversation: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to create conversation: {e}")
 
 
 # ── GET /conversations ────────────────────────────────────────────────────────
@@ -64,20 +76,12 @@ async def create_conversation(
     response_model=list[ConversationOut],
     summary="Get all conversations sorted by latest",
 )
-async def get_conversations(db: AsyncSession = Depends(get_db)):
-    """
-    Returns all conversations sorted by most recently updated first.
-    Used to populate the sidebar list.
-    Messages are NOT included here (saves bandwidth).
-    """
+async def get_conversations(conn: asyncpg.Connection = Depends(get_db)):
     try:
-        convs = await crud.get_all_conversations(db)
-        return convs
+        convs = await crud.get_all_conversations(conn)
+        return [_conv_out(c) for c in convs]
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch conversations: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to fetch conversations: {e}")
 
 
 # ── GET /conversation/{id} ────────────────────────────────────────────────────
@@ -88,27 +92,25 @@ async def get_conversations(db: AsyncSession = Depends(get_db)):
 )
 async def get_conversation(
     conv_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    """
-    Returns a single conversation with all its messages ordered by timestamp.
-    Used when the user clicks a conversation in the sidebar.
-    """
     try:
-        conv = await crud.get_conversation_by_id(db, conv_id)
+        conv = await crud.get_conversation_by_id(conn, conv_id)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     if not conv:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Conversation {conv_id} not found",
-        )
+        raise HTTPException(status_code=404, detail=f"Conversation {conv_id} not found")
 
-    return conv
+    messages = await crud.get_messages_for_conversation(conn, conv_id)
+
+    return ConversationWithMessages(
+        id=conv.id,
+        title=conv.title,
+        created_at=conv.created_at,
+        updated_at=conv.updated_at,
+        messages=[_msg_out(m) for m in messages],
+    )
 
 
 # ── POST /message ─────────────────────────────────────────────────────────────
@@ -120,21 +122,14 @@ async def get_conversation(
 )
 async def save_message(
     body: SaveMessageRequest,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    """
-    Saves both the user message and the AI response in a single request.
-    If this is the first message in the conversation, auto-generates a title.
-
-    The frontend calls this AFTER the AI stream completes.
-    """
     try:
-        # Check if this is the first message (for auto-title generation)
-        msg_count = await crud.get_message_count(db, body.conversation_id)
-        is_first  = msg_count == 0
+        msg_count   = await crud.get_message_count(conn, body.conversation_id)
+        is_first    = msg_count == 0
 
         user_msg, asst_msg, title = await crud.save_message_pair(
-            db=db,
+            conn=conn,
             conv_id=body.conversation_id,
             user_content=body.user_content,
             assistant_content=body.assistant_content,
@@ -142,16 +137,12 @@ async def save_message(
         )
 
         return SaveMessageResponse(
-            user_message=MessageOut.model_validate(user_msg),
-            assistant_message=MessageOut.model_validate(asst_msg),
+            user_message=_msg_out(user_msg),
+            assistant_message=_msg_out(asst_msg),
             conversation_title=title,
         )
-
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save messages: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to save messages: {e}")
 
 
 # ── DELETE /conversation/{id} ──────────────────────────────────────────────────
@@ -162,25 +153,15 @@ async def save_message(
 )
 async def delete_conversation(
     conv_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    """
-    Permanently deletes a conversation and all related messages (CASCADE).
-    Returns 204 No Content on success, 404 if not found.
-    """
     try:
-        deleted = await crud.delete_conversation(db, conv_id)
+        deleted = await crud.delete_conversation(conn, conv_id)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete conversation: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to delete: {e}")
 
     if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Conversation {conv_id} not found",
-        )
+        raise HTTPException(status_code=404, detail=f"Conversation {conv_id} not found")
 
 
 # ── PUT /conversation/{id} ─────────────────────────────────────────────────────
@@ -192,30 +173,17 @@ async def delete_conversation(
 async def rename_conversation(
     conv_id: UUID,
     body: ConversationRename,
-    db: AsyncSession = Depends(get_db),
+    conn: asyncpg.Connection = Depends(get_db),
 ):
-    """
-    Updates the title of an existing conversation.
-    Used when the user inline-edits a title in the sidebar.
-    """
     if not body.title.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Title cannot be empty",
-        )
+        raise HTTPException(status_code=422, detail="Title cannot be empty")
 
     try:
-        conv = await crud.rename_conversation(db, conv_id, body.title)
+        conv = await crud.rename_conversation(conn, conv_id, body.title)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to rename conversation: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to rename: {e}")
 
     if not conv:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Conversation {conv_id} not found",
-        )
+        raise HTTPException(status_code=404, detail=f"Conversation {conv_id} not found")
 
-    return conv
+    return _conv_out(conv)

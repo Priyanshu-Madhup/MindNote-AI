@@ -1,29 +1,47 @@
 """
 crud.py — MindNote AI
 ======================
-All async database operations (Create, Read, Update, Delete).
-Every function takes an AsyncSession and returns ORM model instances
-(or None on not-found).
-
-This layer knows nothing about HTTP — it's pure database logic.
+All async database operations using pure asyncpg.
+Every function takes an asyncpg Connection and returns dataclass instances.
 """
 
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import desc, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncpg
 
 from models import Conversation, Message
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Helpers — convert asyncpg Record → dataclass
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _row_to_conversation(row: asyncpg.Record) -> Conversation:
+    return Conversation(
+        id=row["id"],
+        title=row["title"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+    )
+
+def _row_to_message(row: asyncpg.Record) -> Message:
+    return Message(
+        id=row["id"],
+        conversation_id=row["conversation_id"],
+        role=row["role"],
+        content=row["content"],
+        timestamp=row["timestamp"],
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Title Generation
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Common question/instruction prefixes to strip for cleaner titles
 _STRIP_PREFIXES = re.compile(
     r"^(explain|what\s+is|what\s+are|how\s+to|how\s+do\s+i|tell\s+me\s+about|"
     r"can\s+you|could\s+you|please|write\s+a|write\s+an|give\s+me|"
@@ -34,29 +52,15 @@ _STRIP_PREFIXES = re.compile(
 def generate_title(first_user_message: str) -> str:
     """
     Generates a concise conversation title from the first user message.
-
     Examples:
-      "Explain Binary Search"         → "Binary Search"
-      "What is photosynthesis?"       → "Photosynthesis"
-      "How to reverse a linked list?" → "Reverse a Linked List"
-      "Write a poem about rain"       → "Write a Poem About Rain"
-      "Hello there"                   → "Hello There"
+      "Explain Binary Search"   → "Binary Search"
+      "What is photosynthesis?" → "Photosynthesis"
     """
-    text = first_user_message.strip()
-
-    # Remove trailing punctuation
-    text = text.rstrip("?.!")
-
-    # Strip leading instruction verbs
+    text = first_user_message.strip().rstrip("?.!")
     text = _STRIP_PREFIXES.sub("", text, count=1).strip()
-
-    # Title-case the result
     text = text.title()
-
-    # Truncate to 50 chars, breaking at a word boundary
     if len(text) > 50:
         text = text[:50].rsplit(" ", 1)[0] + "…"
-
     return text or "New Chat"
 
 
@@ -64,121 +68,89 @@ def generate_title(first_user_message: str) -> str:
 # Conversation CRUD
 # ══════════════════════════════════════════════════════════════════════════════
 
-async def create_conversation(
-    db: AsyncSession,
-    title: str = "New Chat",
-) -> Conversation:
-    """Creates a new conversation row and returns it."""
-    conv = Conversation(title=title)
-    db.add(conv)
-    await db.commit()
-    await db.refresh(conv)
-    return conv
-
-
-async def get_all_conversations(db: AsyncSession) -> List[Conversation]:
-    """
-    Returns all conversations sorted by most recently updated first.
-    Messages are NOT loaded here (sidebar only needs titles + timestamps).
-    """
-    result = await db.execute(
-        select(Conversation).order_by(desc(Conversation.updated_at))
+async def create_conversation(conn: asyncpg.Connection, title: str = "New Chat") -> Conversation:
+    """Creates a new conversation and returns it."""
+    row = await conn.fetchrow(
+        """
+        INSERT INTO conversations (title)
+        VALUES ($1)
+        RETURNING id, title, created_at, updated_at
+        """,
+        title,
     )
-    return result.scalars().all()
+    return _row_to_conversation(row)
 
 
-async def get_conversation_by_id(
-    db: AsyncSession,
-    conv_id: UUID,
-) -> Optional[Conversation]:
-    """
-    Returns a single Conversation with all its Messages pre-loaded.
-    Returns None if not found.
-    """
-    result = await db.execute(
-        select(Conversation).where(Conversation.id == conv_id)
+async def get_all_conversations(conn: asyncpg.Connection) -> List[Conversation]:
+    """Returns all conversations sorted by most recently updated first."""
+    rows = await conn.fetch(
+        "SELECT id, title, created_at, updated_at FROM conversations ORDER BY updated_at DESC"
     )
-    return result.scalar_one_or_none()
+    return [_row_to_conversation(r) for r in rows]
 
 
-async def rename_conversation(
-    db: AsyncSession,
-    conv_id: UUID,
-    new_title: str,
-) -> Optional[Conversation]:
-    """
-    Updates a conversation's title.
-    Returns the updated conversation or None if not found.
-    """
-    conv = await get_conversation_by_id(db, conv_id)
-    if not conv:
-        return None
-
-    conv.title = new_title.strip()
-    # Manually bump updated_at since we're not adding messages
-    conv.updated_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(conv)
-    return conv
-
-
-async def delete_conversation(
-    db: AsyncSession,
-    conv_id: UUID,
-) -> bool:
-    """
-    Deletes a conversation (and all its messages via CASCADE).
-    Returns True if deleted, False if not found.
-    """
-    conv = await get_conversation_by_id(db, conv_id)
-    if not conv:
-        return False
-
-    await db.delete(conv)
-    await db.commit()
-    return True
-
-
-async def update_conversation_timestamp(
-    db: AsyncSession,
-    conv_id: UUID,
-) -> None:
-    """Bumps updated_at on a conversation (used when new messages are added)."""
-    await db.execute(
-        update(Conversation)
-        .where(Conversation.id == conv_id)
-        .values(updated_at=datetime.now(timezone.utc))
+async def get_conversation_by_id(conn: asyncpg.Connection, conv_id: UUID) -> Optional[Conversation]:
+    """Returns a conversation or None if not found."""
+    row = await conn.fetchrow(
+        "SELECT id, title, created_at, updated_at FROM conversations WHERE id = $1",
+        conv_id,
     )
-    await db.commit()
+    return _row_to_conversation(row) if row else None
+
+
+async def get_messages_for_conversation(conn: asyncpg.Connection, conv_id: UUID) -> List[Message]:
+    """Returns all messages for a conversation, ordered by timestamp."""
+    rows = await conn.fetch(
+        """
+        SELECT id, conversation_id, role, content, timestamp
+        FROM messages
+        WHERE conversation_id = $1
+        ORDER BY timestamp ASC
+        """,
+        conv_id,
+    )
+    return [_row_to_message(r) for r in rows]
+
+
+async def rename_conversation(conn: asyncpg.Connection, conv_id: UUID, new_title: str) -> Optional[Conversation]:
+    """Updates a conversation's title. Returns updated conversation or None."""
+    row = await conn.fetchrow(
+        """
+        UPDATE conversations
+        SET title = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING id, title, created_at, updated_at
+        """,
+        new_title.strip(),
+        conv_id,
+    )
+    return _row_to_conversation(row) if row else None
+
+
+async def delete_conversation(conn: asyncpg.Connection, conv_id: UUID) -> bool:
+    """Deletes a conversation (cascades to messages). Returns True if deleted."""
+    result = await conn.execute(
+        "DELETE FROM conversations WHERE id = $1",
+        conv_id,
+    )
+    # asyncpg returns "DELETE N" — check if N > 0
+    return result.endswith("1")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Message CRUD
 # ══════════════════════════════════════════════════════════════════════════════
 
-async def save_message(
-    db: AsyncSession,
-    conv_id: UUID,
-    role: str,
-    content: str,
-) -> Message:
-    """
-    Saves a single message to the database.
-    Also bumps the parent conversation's updated_at timestamp.
-    """
-    msg = Message(
-        conversation_id=conv_id,
-        role=role,
-        content=content,
+async def get_message_count(conn: asyncpg.Connection, conv_id: UUID) -> int:
+    """Returns how many messages are in a conversation."""
+    return await conn.fetchval(
+        "SELECT COUNT(*) FROM messages WHERE conversation_id = $1",
+        conv_id,
     )
-    db.add(msg)
-    await db.commit()
-    await db.refresh(msg)
-    return msg
 
 
 async def save_message_pair(
-    db: AsyncSession,
+    conn: asyncpg.Connection,
     conv_id: UUID,
     user_content: str,
     assistant_content: str,
@@ -186,41 +158,57 @@ async def save_message_pair(
 ) -> tuple[Message, Message, str]:
     """
     Saves both user and assistant messages in one transaction.
-    If it's the first message, auto-generates and updates the title.
-
-    Returns: (user_message, assistant_message, current_title)
+    Auto-generates title if this is the first message.
+    Returns (user_message, assistant_message, conversation_title).
     """
-    # Generate title from first user message
-    new_title = None
-    if is_first_message:
-        new_title = generate_title(user_content)
+    async with conn.transaction():
+        # Save user message
+        user_row = await conn.fetchrow(
+            """
+            INSERT INTO messages (conversation_id, role, content)
+            VALUES ($1, 'user', $2)
+            RETURNING id, conversation_id, role, content, timestamp
+            """,
+            conv_id,
+            user_content,
+        )
 
-    # Save user message
-    user_msg = Message(conversation_id=conv_id, role="user",      content=user_content)
-    asst_msg = Message(conversation_id=conv_id, role="assistant", content=assistant_content)
+        # Save assistant message
+        asst_row = await conn.fetchrow(
+            """
+            INSERT INTO messages (conversation_id, role, content)
+            VALUES ($1, 'assistant', $2)
+            RETURNING id, conversation_id, role, content, timestamp
+            """,
+            conv_id,
+            assistant_content,
+        )
 
-    db.add(user_msg)
-    db.add(asst_msg)
+        # Update conversation timestamp and optionally title
+        new_title = generate_title(user_content) if is_first_message else None
 
-    # Update conversation timestamp and optionally the title
-    conv = await get_conversation_by_id(db, conv_id)
-    if conv:
-        conv.updated_at = datetime.now(timezone.utc)
         if new_title:
-            conv.title = new_title
+            conv_row = await conn.fetchrow(
+                """
+                UPDATE conversations
+                SET updated_at = NOW(), title = $1
+                WHERE id = $2
+                RETURNING title
+                """,
+                new_title,
+                conv_id,
+            )
+        else:
+            conv_row = await conn.fetchrow(
+                """
+                UPDATE conversations
+                SET updated_at = NOW()
+                WHERE id = $1
+                RETURNING title
+                """,
+                conv_id,
+            )
 
-    await db.commit()
-    await db.refresh(user_msg)
-    await db.refresh(asst_msg)
-    if conv:
-        await db.refresh(conv)
+        title = conv_row["title"] if conv_row else "New Chat"
 
-    return user_msg, asst_msg, conv.title if conv else "New Chat"
-
-
-async def get_message_count(db: AsyncSession, conv_id: UUID) -> int:
-    """Returns the number of messages in a conversation."""
-    result = await db.execute(
-        select(func.count()).where(Message.conversation_id == conv_id)
-    )
-    return result.scalar_one()
+    return _row_to_message(user_row), _row_to_message(asst_row), title
