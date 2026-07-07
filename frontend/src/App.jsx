@@ -26,11 +26,13 @@ import {
   HelpCircle,
   Globe,
   MessageSquare,
+  Trash2,
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const MOBILE_BP = 768;
+const BACKEND   = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 // --- Helpers ---
 const getGreeting = () => {
@@ -95,13 +97,17 @@ const SidebarProfile = () => {
 };
 
 // --- Sidebar ---
-const Sidebar = ({ isOpen, onClose, isMobile }) => {
-  const notebooks = [
-    { id: '1', title: 'Neural Architecture Search', sourcesCount: 3, notesCount: 12, lastEdited: '2d ago', tags: ['AI/ML', 'Draft'], active: true },
-    { id: '2', title: 'Philosophy of Mind', sourcesCount: 8, notesCount: 45, lastEdited: '5d ago', tags: ['Cognitive Science'] },
-    { id: '3', title: 'Q3 Market Analysis', sourcesCount: 12, notesCount: 8, lastEdited: '1w ago', tags: ['Finance', 'Review'] },
-    { id: '4', title: 'Climate Policy Tech', sourcesCount: 5, notesCount: 22, lastEdited: '2w ago', tags: ['Research'] },
-  ];
+const Sidebar = ({ isOpen, onClose, isMobile, sessions, activeSessionId, onNewSession, onSelectSession, onDeleteSession, loadingSessions }) => {
+
+  const formatDate = (iso) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7)  return `${diffDays}d ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
 
   return (
     <AnimatePresence>
@@ -136,44 +142,65 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
               )}
             </div>
 
-            {/* New Notebook Button */}
+            {/* New Chat Button */}
             <div className="px-4 mb-4">
-              <button className="flex items-center justify-center gap-2 w-full bg-[#D4C5A9] hover:bg-[#E2D4B9] text-[#0C0C0C] font-semibold rounded-lg py-2.5 text-[13px] transition-colors shadow-sm">
+              <button
+                onClick={onNewSession}
+                className="flex items-center justify-center gap-2 w-full bg-[#D4C5A9] hover:bg-[#E2D4B9] text-[#0C0C0C] font-semibold rounded-lg py-2.5 text-[13px] transition-colors shadow-sm"
+              >
                 <Plus size={16} strokeWidth={2.5} />
-                New Notebook
+                New Chat
               </button>
             </div>
 
-            {/* Navigation Links */}
+            {/* Chat History */}
             <nav className="flex flex-col w-full px-4">
               <div className="flex justify-between items-center mb-2 px-2">
-                <span className="text-[10px] uppercase tracking-widest text-[#6B6B6B] font-semibold">NOTEBOOKS</span>
+                <span className="text-[10px] uppercase tracking-widest text-[#6B6B6B] font-semibold">CHAT HISTORY</span>
               </div>
 
-              {notebooks.map((nb) => (
-                <div key={nb.id} className="flex flex-col w-full mb-1">
-                  <div
-                    className={`flex items-center gap-2 pl-2 pr-3 h-[36px] rounded-md cursor-pointer transition-colors ${
-                      nb.active
-                        ? 'border-l-2 border-[#D4C5A9] bg-[#1C1C1C] text-[#F0F0F0] rounded-l-none'
-                        : 'text-[#A0A0A0] hover:text-[#F0F0F0] hover:bg-[#141414]'
-                    }`}
-                  >
-                    {nb.active
-                      ? <ChevronDown size={14} className="text-[#6B6B6B]" />
-                      : <ChevronRight size={14} className="text-[#6B6B6B] -ml-1" />}
-                    <NotebookIcon filled={nb.active} className={nb.active ? 'text-[#F0F0F0]' : 'text-[#A0A0A0]'} />
-                    <span className="text-[13px] truncate">{nb.title}</span>
-                  </div>
-
-                  {nb.active && (
-                    <div className="flex items-center gap-2 pl-9 py-2 cursor-pointer hover:bg-[#141414] rounded-md transition-colors mt-1">
-                      <Paperclip size={12} className="text-[#6B6B6B]" />
-                      <span className="text-[12px] text-[#6B6B6B] italic">Add PDF / Source</span>
-                    </div>
-                  )}
+              {loadingSessions ? (
+                <div className="flex flex-col gap-2 px-2 mt-1">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="h-[36px] bg-[#141414] rounded-md animate-pulse" />
+                  ))}
                 </div>
-              ))}
+              ) : sessions.length === 0 ? (
+                <p className="text-[12px] text-[#6B6B6B] px-2 mt-2 italic">No chats yet. Start a conversation!</p>
+              ) : (
+                sessions.map((s) => {
+                  const active = s.session_id === activeSessionId;
+                  return (
+                    <div key={s.session_id} className="group flex items-center gap-1 w-full mb-0.5">
+                      <button
+                        onClick={() => onSelectSession(s.session_id)}
+                        className={`flex-1 flex items-center gap-2 pl-2 pr-2 h-[36px] rounded-md cursor-pointer transition-colors text-left min-w-0 ${
+                          active
+                            ? 'border-l-2 border-[#D4C5A9] bg-[#1C1C1C] text-[#F0F0F0] rounded-l-none'
+                            : 'text-[#A0A0A0] hover:text-[#F0F0F0] hover:bg-[#141414]'
+                        }`}
+                      >
+                        {active
+                          ? <ChevronDown size={14} className="text-[#6B6B6B] flex-shrink-0" />
+                          : <ChevronRight size={14} className="text-[#6B6B6B] -ml-1 flex-shrink-0" />}
+                        <NotebookIcon filled={active} className={`flex-shrink-0 ${active ? 'text-[#F0F0F0]' : 'text-[#A0A0A0]'}`} />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[12px] truncate leading-tight">{s.title}</span>
+                          <span className="text-[10px] text-[#6B6B6B] leading-tight">{formatDate(s.created_at)}</span>
+                        </div>
+                      </button>
+                      {/* Delete button — visible on hover */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDeleteSession(s.session_id); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-[#6B6B6B] hover:text-red-400 rounded flex-shrink-0"
+                        aria-label="Delete chat"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
             </nav>
           </div>
 
@@ -318,7 +345,7 @@ const WelcomeSection = () => {
   );
 };
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
 
 // ── Thinking indicator — bare animated text, no bubble ───────────────────
 const ThinkingIndicator = () => (
@@ -388,9 +415,9 @@ const ChatMessage = ({ msg }) => {
 // --- Main App ---
 export default function App() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
 
   // showLanding is only true when Clerk confirms user is NOT signed in
-  // This prevents the 1-second flash on refresh for signed-in users
   const [showLanding, setShowLanding] = useState(false);
 
   useEffect(() => {
@@ -399,45 +426,105 @@ export default function App() {
     }
   }, [isLoaded, isSignedIn]);
 
-  const [isMobile, setIsMobile]       = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile]             = useState(false);
+  const [sidebarOpen, setSidebarOpen]       = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
-  // ── Chat state ──────────────────────────────────────────────────────────
-  const [messages, setMessages]   = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
-  const [hasChat, setHasChat]     = useState(false);
-  const bottomRef                 = useRef(null);
-  const inputRef                  = useRef(null);
-  // Typewriter queue — chars drip out at CHAR_DELAY ms each
-  const charQueue                 = useRef([]);
-  const isTyping                  = useRef(false);
-  const typingTarget              = useRef(null); // index into messages
-  const CHAR_DELAY                = 18; // ~15% slower than raw SSE
+  // ── Chat history (Neon) ──────────────────────────────────────────────────
+  const [sessions, setSessions]           = useState([]);    // [{session_id, title, created_at}]
+  const [activeSessionId, setActiveSessionId] = useState(null); // current session UUID string
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
-  // Detect mobile and set initial sidebar state
+  // Load session list whenever user signs in
+  useEffect(() => {
+    if (!isSignedIn || !user?.id) return;
+    const fetchSessions = async () => {
+      setLoadingSessions(true);
+      try {
+        const res  = await fetch(`${BACKEND}/history/${user.id}`);
+        const data = await res.json();
+        setSessions(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.warn('Could not load chat history:', e);
+      } finally {
+        setLoadingSessions(false);
+      }
+    };
+    fetchSessions();
+  }, [isSignedIn, user?.id]);
+
+  // ── Chat state ──────────────────────────────────────────────────────────
+  const [messages, setMessages]     = useState([]);
+  const [inputText, setInputText]   = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [hasChat, setHasChat]       = useState(false);
+  const bottomRef                   = useRef(null);
+  const inputRef                    = useRef(null);
+  const charQueue                   = useRef([]);
+  const isTyping                    = useRef(false);
+  const typingTarget                = useRef(null);
+  const CHAR_DELAY                  = 18;
+
+  // Detect mobile
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < MOBILE_BP;
       setIsMobile(mobile);
-      if (mobile) {
-        setSidebarOpen(false);
-        setRightPanelOpen(false);
-      } else {
-        setSidebarOpen(true);
-        setRightPanelOpen(true);
-      }
+      if (mobile) { setSidebarOpen(false); setRightPanelOpen(false); }
+      else         { setSidebarOpen(true);  setRightPanelOpen(true);  }
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Auto-scroll to bottom on new content
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
+
+  // ── New session handler ──────────────────────────────────────────────────
+  const handleNewSession = useCallback(async () => {
+    setMessages([]);
+    setHasChat(false);
+    setActiveSessionId(null);
+    charQueue.current = [];
+    isTyping.current  = false;
+    inputRef.current?.focus();
+  }, []);
+
+  // ── Load a past session ──────────────────────────────────────────────────
+  const handleSelectSession = useCallback(async (sessionId) => {
+    if (sessionId === activeSessionId) return;
+    setActiveSessionId(sessionId);
+    setHasChat(true);
+    charQueue.current = [];
+    isTyping.current  = false;
+    try {
+      const res  = await fetch(`${BACKEND}/history/${user.id}/${sessionId}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMessages(data.map(({ role, content }) => ({ role, content })));
+      }
+    } catch (e) {
+      console.warn('Could not load session:', e);
+    }
+  }, [activeSessionId, user?.id]);
+
+  // ── Delete a session ─────────────────────────────────────────────────────
+  const handleDeleteSession = useCallback(async (sessionId) => {
+    try {
+      await fetch(`${BACKEND}/history/${user.id}/${sessionId}`, { method: 'DELETE' });
+      setSessions(prev => prev.filter(s => s.session_id !== sessionId));
+      if (activeSessionId === sessionId) {
+        setMessages([]);
+        setHasChat(false);
+        setActiveSessionId(null);
+      }
+    } catch (e) {
+      console.warn('Could not delete session:', e);
+    }
+  }, [activeSessionId, user?.id]);
 
   // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
@@ -451,39 +538,35 @@ export default function App() {
     setHasChat(true);
     setIsThinking(true);
 
-    // Placeholder assistant bubble (will be filled by stream)
     const assistantIdx = history.length;
     setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }]);
+
+    // Track session id returned by backend (may be new)
+    let returnedSessionId = activeSessionId;
 
     try {
       const res = await fetch(`${BACKEND}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: history.map(({ role, content }) => ({ role, content })),
+          messages:   history.map(({ role, content }) => ({ role, content })),
+          user_id:    user?.id ?? 'anonymous',
+          session_id: activeSessionId ?? undefined,
         }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Don't hide thinking yet — keep it until first char arrives
-      const reader = res.body.getReader();
+      const reader  = res.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      let buffer    = '';
       let firstChar = true;
 
       // ── Typewriter drip engine ──────────────────────────────────────────
       const drip = (idx) => {
-        if (charQueue.current.length === 0) {
-          isTyping.current = false;
-          return;
-        }
+        if (charQueue.current.length === 0) { isTyping.current = false; return; }
         const char = charQueue.current.shift();
-        // Hide thinking indicator on very first character
-        if (firstChar) {
-          firstChar = false;
-          setIsThinking(false);
-        }
+        if (firstChar) { firstChar = false; setIsThinking(false); }
         setMessages(prev => {
           const updated = [...prev];
           updated[idx] = { ...updated[idx], content: updated[idx].content + char };
@@ -506,15 +589,25 @@ export default function App() {
           const trimmed = line.replace(/^data:\s*/, '');
           if (!trimmed || trimmed === '[DONE]') continue;
           try {
-            const { token, error } = JSON.parse(trimmed);
-            if (error) throw new Error(error);
-            if (token) {
-              // push each character individually into the queue
-              for (const ch of token) charQueue.current.push(ch);
-              if (!isTyping.current) {
-                isTyping.current = true;
-                drip(assistantIdx);
+            const parsed = JSON.parse(trimmed);
+            // First frame: session_id from backend
+            if (parsed.session_id) {
+              returnedSessionId = parsed.session_id;
+              setActiveSessionId(parsed.session_id);
+              // Optimistically add new session to sidebar so it appears immediately
+              if (!activeSessionId) {
+                setSessions(prev =>
+                  prev.some(s => s.session_id === parsed.session_id)
+                    ? prev
+                    : [{ session_id: parsed.session_id, title: text.slice(0, 80), created_at: new Date().toISOString() }, ...prev]
+                );
               }
+              continue;
+            }
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.token) {
+              for (const ch of parsed.token) charQueue.current.push(ch);
+              if (!isTyping.current) { isTyping.current = true; drip(assistantIdx); }
             }
           } catch { /* ignore malformed lines */ }
         }
@@ -531,13 +624,18 @@ export default function App() {
         return updated;
       });
     } finally {
-      // Remove streaming cursor once done
-      setMessages(prev =>
-        prev.map((m, i) => i === assistantIdx ? { ...m, streaming: false } : m)
-      );
+      setMessages(prev => prev.map((m, i) => i === assistantIdx ? { ...m, streaming: false } : m));
       inputRef.current?.focus();
+      // Refresh session list so new session appears (or title updates)
+      if (user?.id) {
+        try {
+          const res  = await fetch(`${BACKEND}/history/${user.id}`);
+          const data = await res.json();
+          if (Array.isArray(data)) setSessions(data);
+        } catch { /* silent */ }
+      }
     }
-  }, [inputText, messages, isThinking]);
+  }, [inputText, messages, isThinking, activeSessionId, user?.id]);
 
   // While Clerk is initialising — show nothing (avoids flash)
   if (!isLoaded) {
@@ -583,6 +681,12 @@ export default function App() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isMobile={isMobile}
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onNewSession={handleNewSession}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
+        loadingSessions={loadingSessions}
       />
 
       {/* Main Content */}
