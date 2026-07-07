@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@clerk/react": "^6.9.1",
-    "@clerk/ui": "^1.16.1",
+    "@clerk/ui": "^1.24.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@tailwindcss/vite": "^4.2.4",
@@ -32,6 +32,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
-    "vite": "^8.0.10"
+    "vite": "^8.1.3"
   }
 }
