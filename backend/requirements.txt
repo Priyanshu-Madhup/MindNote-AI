@@ -1,4 +1,11 @@
+# MindNote AI — Backend Dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Existing ──────────────────────────────────────────────────────────────────
 fastapi
 uvicorn[standard]
 openai
 python-dotenv
+
+# ── Database (added v2 — Chat History) ───────────────────────────────────────
+asyncpg                # async PostgreSQL driver — used directly (no SQLAlchemy needed)

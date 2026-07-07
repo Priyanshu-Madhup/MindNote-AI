@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import LandingPage from './LandingPage';
+import ChatHistorySidebar from './ChatHistorySidebar';
 import { useUser, UserButton, useAuth } from '@clerk/react';
 import {
   Plus,
@@ -31,6 +32,10 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 const MOBILE_BP = 768;
+const BACKEND   = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+
+// ── Last-conversation persistence ─────────────────────────────────────────────
+const LAST_CONV_KEY = 'mindnote_last_conv_id';
 
 // --- Helpers ---
 const getGreeting = () => {
@@ -94,15 +99,16 @@ const SidebarProfile = () => {
   );
 };
 
-// --- Sidebar ---
-const Sidebar = ({ isOpen, onClose, isMobile }) => {
-  const notebooks = [
-    { id: '1', title: 'Neural Architecture Search', sourcesCount: 3, notesCount: 12, lastEdited: '2d ago', tags: ['AI/ML', 'Draft'], active: true },
-    { id: '2', title: 'Philosophy of Mind', sourcesCount: 8, notesCount: 45, lastEdited: '5d ago', tags: ['Cognitive Science'] },
-    { id: '3', title: 'Q3 Market Analysis', sourcesCount: 12, notesCount: 8, lastEdited: '1w ago', tags: ['Finance', 'Review'] },
-    { id: '4', title: 'Climate Policy Tech', sourcesCount: 5, notesCount: 22, lastEdited: '2w ago', tags: ['Research'] },
-  ];
-
+// --- Sidebar (now with Chat History) ---
+const Sidebar = ({
+  isOpen,
+  onClose,
+  isMobile,
+  currentConvId,
+  onSelectConversation,
+  onNewChat,
+  onTitleUpdate,
+}) => {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -112,11 +118,11 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: -280, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-          className="fixed left-0 top-0 bottom-0 flex flex-col justify-between py-8 w-[280px] h-screen border-r border-[#2A2A2A] bg-[#0C0C0C] z-[30] font-sans text-sm font-medium tracking-tight overflow-y-auto"
+          className="fixed left-0 top-0 bottom-0 flex flex-col justify-between py-8 w-[280px] h-screen border-r border-[#2A2A2A] bg-[#0C0C0C] z-[30] font-sans text-sm font-medium tracking-tight overflow-hidden"
         >
-          <div className="flex flex-col w-full">
+          <div className="flex flex-col w-full h-full min-h-0">
             {/* Brand + Close on mobile */}
-            <div className="px-6 mb-6 flex items-center justify-between text-xl font-bold tracking-tighter text-neutral-100 pb-5 border-b border-[#2A2A2A]">
+            <div className="px-6 mb-5 flex items-center justify-between text-xl font-bold tracking-tighter text-neutral-100 pb-5 border-b border-[#2A2A2A] flex-shrink-0">
               <div className="flex items-center gap-2.5">
                 <img
                   src="/MindNote.png"
@@ -136,45 +142,27 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
               )}
             </div>
 
-            {/* New Notebook Button */}
-            <div className="px-4 mb-4">
-              <button className="flex items-center justify-center gap-2 w-full bg-[#D4C5A9] hover:bg-[#E2D4B9] text-[#0C0C0C] font-semibold rounded-lg py-2.5 text-[13px] transition-colors shadow-sm">
+            {/* New Chat Button */}
+            <div className="px-4 mb-4 flex-shrink-0">
+              <button
+                id="new-chat-btn"
+                onClick={onNewChat}
+                className="flex items-center justify-center gap-2 w-full bg-[#D4C5A9] hover:bg-[#E2D4B9] text-[#0C0C0C] font-semibold rounded-lg py-2.5 text-[13px] transition-colors shadow-sm active:scale-[0.98]"
+              >
                 <Plus size={16} strokeWidth={2.5} />
-                New Notebook
+                New Chat
               </button>
             </div>
 
-            {/* Navigation Links */}
-            <nav className="flex flex-col w-full px-4">
-              <div className="flex justify-between items-center mb-2 px-2">
-                <span className="text-[10px] uppercase tracking-widest text-[#6B6B6B] font-semibold">NOTEBOOKS</span>
-              </div>
-
-              {notebooks.map((nb) => (
-                <div key={nb.id} className="flex flex-col w-full mb-1">
-                  <div
-                    className={`flex items-center gap-2 pl-2 pr-3 h-[36px] rounded-md cursor-pointer transition-colors ${
-                      nb.active
-                        ? 'border-l-2 border-[#D4C5A9] bg-[#1C1C1C] text-[#F0F0F0] rounded-l-none'
-                        : 'text-[#A0A0A0] hover:text-[#F0F0F0] hover:bg-[#141414]'
-                    }`}
-                  >
-                    {nb.active
-                      ? <ChevronDown size={14} className="text-[#6B6B6B]" />
-                      : <ChevronRight size={14} className="text-[#6B6B6B] -ml-1" />}
-                    <NotebookIcon filled={nb.active} className={nb.active ? 'text-[#F0F0F0]' : 'text-[#A0A0A0]'} />
-                    <span className="text-[13px] truncate">{nb.title}</span>
-                  </div>
-
-                  {nb.active && (
-                    <div className="flex items-center gap-2 pl-9 py-2 cursor-pointer hover:bg-[#141414] rounded-md transition-colors mt-1">
-                      <Paperclip size={12} className="text-[#6B6B6B]" />
-                      <span className="text-[12px] text-[#6B6B6B] italic">Add PDF / Source</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </nav>
+            {/* Chat History Sidebar — scrollable */}
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <ChatHistorySidebar
+                currentConvId={currentConvId}
+                onSelectConversation={onSelectConversation}
+                onNewChat={onNewChat}
+                onTitleUpdate={onTitleUpdate}
+              />
+            </div>
           </div>
 
           {/* Footer Profile */}
@@ -318,8 +306,6 @@ const WelcomeSection = () => {
   );
 };
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-
 // ── Thinking indicator — bare animated text, no bubble ───────────────────
 const ThinkingIndicator = () => (
   <motion.div
@@ -385,6 +371,19 @@ const ChatMessage = ({ msg }) => {
   );
 };
 
+// ── Loading overlay while fetching conversation messages ──────────────────
+const ConvLoadingOverlay = () => (
+  <div className="flex flex-col gap-4 px-4 py-6 animate-pulse">
+    {[90, 60, 80, 50].map((w, i) => (
+      <div
+        key={i}
+        className={`h-10 rounded-2xl bg-[#1C1C1C] ${i % 2 === 0 ? 'self-end' : 'self-start'}`}
+        style={{ width: `${w}%` }}
+      />
+    ))}
+  </div>
+);
+
 // --- Main App ---
 export default function App() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -404,17 +403,24 @@ export default function App() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
   // ── Chat state ──────────────────────────────────────────────────────────
-  const [messages, setMessages]   = useState([]);
-  const [inputText, setInputText] = useState('');
+  const [messages,   setMessages]   = useState([]);
+  const [inputText,  setInputText]  = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [hasChat, setHasChat]     = useState(false);
-  const bottomRef                 = useRef(null);
-  const inputRef                  = useRef(null);
+  const [hasChat,    setHasChat]    = useState(false);
+  const [isLoadingConv, setIsLoadingConv] = useState(false);
+
+  // ── Conversation state ──────────────────────────────────────────────────
+  const [currentConvId, setCurrentConvId] = useState(null);
+
+  const bottomRef      = useRef(null);
+  const inputRef       = useRef(null);
   // Typewriter queue — chars drip out at CHAR_DELAY ms each
-  const charQueue                 = useRef([]);
-  const isTyping                  = useRef(false);
-  const typingTarget              = useRef(null); // index into messages
-  const CHAR_DELAY                = 18; // ~15% slower than raw SSE
+  const charQueue      = useRef([]);
+  const isTyping       = useRef(false);
+  const typingTarget   = useRef(null); // index into messages
+  // Accumulates full AI response text for persistence
+  const assistantBuffer = useRef('');
+  const CHAR_DELAY      = 18;
 
   // Detect mobile and set initial sidebar state
   useEffect(() => {
@@ -439,11 +445,147 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
+  // ── On mount: restore last opened conversation ───────────────────────────
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const savedId = localStorage.getItem(LAST_CONV_KEY);
+    if (savedId) {
+      loadConversation(savedId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
+
+  // ── Save currentConvId to localStorage whenever it changes ──────────────
+  useEffect(() => {
+    if (currentConvId) {
+      localStorage.setItem(LAST_CONV_KEY, currentConvId);
+    } else {
+      localStorage.removeItem(LAST_CONV_KEY);
+    }
+  }, [currentConvId]);
+
+  // ── Load a conversation's messages from the API ──────────────────────────
+  const loadConversation = useCallback(async (convId) => {
+    setIsLoadingConv(true);
+    setHasChat(false);
+    setMessages([]);
+
+    try {
+      const res = await fetch(`${BACKEND}/conversation/${convId}`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          // Conversation was deleted — clear state
+          setCurrentConvId(null);
+          localStorage.removeItem(LAST_CONV_KEY);
+          return;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+
+      // Convert API messages to UI format
+      const uiMessages = data.messages.map(m => ({
+        role:    m.role,
+        content: m.content,
+      }));
+
+      setCurrentConvId(convId);
+      setMessages(uiMessages);
+      setHasChat(uiMessages.length > 0);
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+      // Don't crash — just show empty state
+      setCurrentConvId(convId);
+      setHasChat(false);
+    } finally {
+      setIsLoadingConv(false);
+    }
+  }, []);
+
+  // ── Handle clicking a conversation in the sidebar ────────────────────────
+  const handleSelectConversation = useCallback((convId) => {
+    if (convId === currentConvId) return; // already loaded
+    loadConversation(convId);
+    // Close sidebar on mobile after selection
+    if (isMobile) setSidebarOpen(false);
+  }, [currentConvId, loadConversation, isMobile]);
+
+  // ── Handle "New Chat" ────────────────────────────────────────────────────
+  const handleNewChat = useCallback(() => {
+    setCurrentConvId(null);
+    setMessages([]);
+    setHasChat(false);
+    setInputText('');
+    inputRef.current?.focus();
+    if (isMobile) setSidebarOpen(false);
+  }, [isMobile]);
+
+  // ── Handle title update from sidebar (rename or auto-title) ─────────────
+  const handleTitleUpdate = useCallback((newTitle) => {
+    // Could update page title or header — extensible hook
+    document.title = `${newTitle} — MindNote AI`;
+  }, []);
+
+  // ── Persist messages to Neon after streaming completes ───────────────────
+  const persistMessages = useCallback(async (convId, userText, aiText) => {
+    try {
+      const res = await fetch(`${BACKEND}/message`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id:   convId,
+          user_content:      userText,
+          assistant_content: aiText,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      // Notify ChatHistorySidebar to update its list
+      window.dispatchEvent(new CustomEvent('mindnote:conversation-updated', {
+        detail: {
+          id:         convId,
+          title:      data.conversation_title,
+          updated_at: new Date().toISOString(),
+        },
+      }));
+    } catch (err) {
+      console.error('Failed to persist messages:', err);
+      // Non-fatal: UI already shows the messages; DB save failed silently
+    }
+  }, []);
+
+  // ── Create a new conversation via API ────────────────────────────────────
+  const createConversation = useCallback(async () => {
+    const res = await fetch(`${BACKEND}/conversation`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'New Chat' }),
+    });
+    if (!res.ok) throw new Error(`Failed to create conversation: HTTP ${res.status}`);
+    const data = await res.json();
+    return data.id;
+  }, []);
+
   // ── Send message ─────────────────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     const text = inputText.trim();
     if (!text || isThinking) return;
 
+    // ── Step 1: Ensure we have a conversation ──────────────────────────────
+    let convId = currentConvId;
+    if (!convId) {
+      try {
+        convId = await createConversation();
+        setCurrentConvId(convId);
+      } catch (err) {
+        console.error('Could not create conversation:', err);
+        // Continue without persistence (degraded mode)
+      }
+    }
+
+    // ── Step 2: Add user message to UI immediately ─────────────────────────
     const userMsg = { role: 'user', content: text };
     const history = [...messages, userMsg];
     setMessages(history);
@@ -451,11 +593,15 @@ export default function App() {
     setHasChat(true);
     setIsThinking(true);
 
+    // Reset accumulation buffer for new AI response
+    assistantBuffer.current = '';
+
     // Placeholder assistant bubble (will be filled by stream)
     const assistantIdx = history.length;
     setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }]);
 
     try {
+      // ── Step 3: Stream AI response (UNCHANGED from v1) ─────────────────
       const res = await fetch(`${BACKEND}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -466,20 +612,18 @@ export default function App() {
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Don't hide thinking yet — keep it until first char arrives
-      const reader = res.body.getReader();
+      const reader  = res.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      let buffer    = '';
       let firstChar = true;
 
-      // ── Typewriter drip engine ──────────────────────────────────────────
+      // ── Typewriter drip engine (UNCHANGED from v1) ──────────────────────
       const drip = (idx) => {
         if (charQueue.current.length === 0) {
           isTyping.current = false;
           return;
         }
         const char = charQueue.current.shift();
-        // Hide thinking indicator on very first character
         if (firstChar) {
           firstChar = false;
           setIsThinking(false);
@@ -489,6 +633,8 @@ export default function App() {
           updated[idx] = { ...updated[idx], content: updated[idx].content + char };
           return updated;
         });
+        // Accumulate full response for persistence
+        assistantBuffer.current += char;
         setTimeout(() => drip(idx), CHAR_DELAY);
       };
 
@@ -509,7 +655,6 @@ export default function App() {
             const { token, error } = JSON.parse(trimmed);
             if (error) throw new Error(error);
             if (token) {
-              // push each character individually into the queue
               for (const ch of token) charQueue.current.push(ch);
               if (!isTyping.current) {
                 isTyping.current = true;
@@ -519,13 +664,32 @@ export default function App() {
           } catch { /* ignore malformed lines */ }
         }
       }
+
+      // ── Step 4: Wait for typewriter to finish, then persist ───────────────
+      // Poll until the char queue drains (typewriter finished)
+      await new Promise(resolve => {
+        const check = () => {
+          if (!isTyping.current && charQueue.current.length === 0) {
+            resolve();
+          } else {
+            setTimeout(check, 50);
+          }
+        };
+        setTimeout(check, 50);
+      });
+
+      // Save both messages to Neon (non-blocking)
+      if (convId) {
+        persistMessages(convId, text, assistantBuffer.current);
+      }
+
     } catch (err) {
       setIsThinking(false);
       setMessages(prev => {
         const updated = [...prev];
         updated[assistantIdx] = {
-          role: 'assistant',
-          content: `⚠️ Error: ${err.message}. Make sure the backend is running on ${BACKEND}.`,
+          role:      'assistant',
+          content:   `⚠️ Error: ${err.message}. Make sure the backend is running on ${BACKEND}.`,
           streaming: false,
         };
         return updated;
@@ -537,7 +701,7 @@ export default function App() {
       );
       inputRef.current?.focus();
     }
-  }, [inputText, messages, isThinking]);
+  }, [inputText, messages, isThinking, currentConvId, createConversation, persistMessages]);
 
   // While Clerk is initialising — show nothing (avoids flash)
   if (!isLoaded) {
@@ -583,12 +747,16 @@ export default function App() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         isMobile={isMobile}
+        currentConvId={currentConvId}
+        onSelectConversation={handleSelectConversation}
+        onNewChat={handleNewChat}
+        onTitleUpdate={handleTitleUpdate}
       />
 
       {/* Main Content */}
       <motion.main
         animate={{
-          marginLeft: !isMobile && sidebarOpen ? '280px' : '0px',
+          marginLeft:  !isMobile && sidebarOpen    ? '280px' : '0px',
           marginRight: !isMobile && rightPanelOpen ? '320px' : '0px',
         }}
         transition={{ type: 'spring', stiffness: 320, damping: 30 }}
@@ -640,7 +808,9 @@ export default function App() {
 
         {/* Scrollable Content — welcome screen OR chat history */}
         <div className="flex-1 overflow-y-auto pt-4 sm:pt-6 px-2 sm:px-4 pb-[100px] sm:pb-[120px]">
-          {!hasChat ? (
+          {isLoadingConv ? (
+            <ConvLoadingOverlay />
+          ) : !hasChat ? (
             <WelcomeSection />
           ) : (
             <div className="w-full max-w-none px-2">
@@ -666,14 +836,19 @@ export default function App() {
               value={inputText}
               onChange={e => setInputText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              disabled={isThinking}
+              disabled={isThinking || isLoadingConv}
               className="w-full bg-transparent border-none p-0 text-[#E5E2E1] placeholder:text-[#6B6B6B] focus:ring-0 text-[13px] sm:text-[14px] font-normal outline-none disabled:opacity-50"
-              placeholder={isThinking ? 'MindNote is thinking…' : 'Ask anything across your notebooks...'}
+              placeholder={
+                isLoadingConv ? 'Loading conversation…' :
+                isThinking    ? 'MindNote is thinking…' :
+                                'Ask anything across your notebooks...'
+              }
               type="text"
             />
             <button
+              id="send-message-btn"
               onClick={sendMessage}
-              disabled={isThinking || !inputText.trim()}
+              disabled={isThinking || isLoadingConv || !inputText.trim()}
               className="w-[30px] h-[30px] sm:w-[32px] sm:h-[32px] bg-[#D4C5A9] rounded-full flex items-center justify-center hover:bg-[#E2D4B9] transition-colors ml-2 sm:ml-3 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ArrowUp className="text-[#0C0C0C]" size={16} />
