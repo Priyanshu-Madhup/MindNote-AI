@@ -1,42 +1,51 @@
 """
-MindNote AI – FastAPI Chat Backend
+MindNote AI – FastAPI Chat Backend  (v2.0 — with Chat History)
+===============================================================
 Uses Groq's OpenAI-compatible API with streaming so the frontend
 can receive tokens as they arrive (typewriter effect).
+
+v2 additions:
+  - Neon PostgreSQL via async SQLAlchemy
+  - Chat History endpoints (see routes.py)
+  - Tables auto-created at startup
 """
 
-from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
 from openai import OpenAI
-from dotenv import load_dotenv
-import os
 import json
 
-# ── Load env vars from backend/.env ──────────────────────────────────────────
-load_dotenv()
+# ── Config (env vars) ─────────────────────────────────────────────────────────
+from config import GROQ_API_KEY, APP_TITLE, APP_VERSION
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    raise RuntimeError("GROQ_API_KEY not found – add it to backend/.env")
+# ── Database (startup table creation) ────────────────────────────────────────
+from database import create_all_tables
 
-# ── Groq client (OpenAI-compatible) ──────────────────────────────────────────
-client = OpenAI(
-    api_key=GROQ_API_KEY,
-    base_url="https://api.groq.com/openai/v1",
-)
+# ── Chat History routes ───────────────────────────────────────────────────────
+from routes import router as history_router
 
-MODEL = "openai/gpt-oss-20b"   # fast, capable Groq model
 
-SYSTEM_PROMPT = (
-    "You are MindNote AI, an intelligent study and knowledge assistant. "
-    "You help users understand documents, generate insights, create study materials, "
-    "and answer questions across their notebooks. Be concise, helpful, and insightful."
-)
+# ── Lifespan: runs once at startup and shutdown ───────────────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: create DB tables if they don't exist
+    await create_all_tables()
+    print("✅ Database tables ready")
+    yield
+    # Shutdown: nothing to clean up (connections managed by engine)
+
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
-app = FastAPI(title="MindNote AI Chat API", version="1.0.0")
+app = FastAPI(
+    title=APP_TITLE,
+    version=APP_VERSION,
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,7 +64,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
+# ── Mount Chat History router ─────────────────────────────────────────────────
+app.include_router(history_router)
+
+
+# ── Groq client (OpenAI-compatible) ──────────────────────────────────────────
+client = OpenAI(
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1",
+)
+
+MODEL = "openai/gpt-oss-20b"   # fast, capable Groq model
+
+SYSTEM_PROMPT = (
+    "You are MindNote AI, an intelligent study and knowledge assistant. "
+    "You help users understand documents, generate insights, create study materials, "
+    "and answer questions across their notebooks. Be concise, helpful, and insightful."
+)
+
+
+# ── Schemas (for existing /chat/stream endpoint) ──────────────────────────────
 class Message(BaseModel):
     role: str        # "user" | "assistant"
     content: str
@@ -63,10 +91,11 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[Message]
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+
+# ── Existing Routes (unchanged) ───────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": MODEL}
+    return {"status": "ok", "model": MODEL, "version": APP_VERSION}
 
 
 @app.post("/chat/stream")
@@ -75,6 +104,9 @@ async def chat_stream(body: ChatRequest):
     Returns a Server-Sent Events (SSE) stream of tokens.
     The frontend reads each 'data: ...' line and appends characters
     one-by-one for the typewriter effect.
+
+    NOTE: This endpoint is UNCHANGED from v1.
+    The frontend calls POST /message separately to persist the exchange.
     """
     conversation = [{"role": "system", "content": SYSTEM_PROMPT}]
     conversation += [m.model_dump() for m in body.messages]
